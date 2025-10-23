@@ -1,0 +1,11 @@
+{
+    "id": "unitylangpx-obsidian",
+    "name": "UnityLangPX翻译",
+    "version": "1.0.0",
+    "minAppVersion": "0.15.0",
+    "description": "基于大模型技术的翻译工具，支持Markdown文件翻译，保持格式和Obsidian特有语法",
+    "author": "UnityLangPX Team",
+    "authorUrl": "",
+    "fundingUrl": "",
+    "isDesktopOnly": false
+}

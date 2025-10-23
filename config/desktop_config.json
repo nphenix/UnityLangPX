@@ -1,0 +1,61 @@
+{
+  "general": {
+    "default_source_lang": "zh",
+    "default_target_lang": "en",
+    "default_output_dir": "output",
+    "filename_pattern": "{name}_translated{ext}",
+    "auto_backup": true,
+    "open_output_after_complete": true
+  },
+  "translation": {
+    "default_model": "SimonPu/Hunyuan-MT-Chimera-7B:Q8",
+    "chunk_size": 1000,
+    "overlap_size": 50,
+    "max_retries": 3,
+    "timeout": 30
+  },
+  "performance": {
+    "max_workers": 4,
+    "memory_limit": "2GB",
+    "enable_gpu": true
+  },
+  "ui": {
+    "theme": "light",
+    "language": "zh-CN",
+    "window_size": [
+      1936,
+      1048
+    ],
+    "window_position": [
+      100,
+      100
+    ]
+  },
+  "terminology": {
+    "enable_traditional": true,
+    "enable_rag": false,
+    "enable_learning": false,
+    "embedding_model": "bge-m3:latest",
+    "vector_db_type": "sqlite-vss",
+    "vector_db_path": "data/terminology_vectors.db",
+    "auto_extract_threshold": 0.7,
+    "max_suggestions": 5,
+    "cache_size": 100,
+    "confidence_threshold": 0.8,
+    "auto_save": true,
+    "backup_enabled": true,
+    "vector_sync_mode": "auto",
+    "vector_batch_size": 10,
+    "vector_update_delay": 1.0,
+    "enable_vector_cleanup": true,
+    "vector_cleanup_interval": 24,
+    "similarity_threshold": 0.7,
+    "max_vector_results": 10,
+    "enable_hybrid_search": true,
+    "hybrid_search_weights": {
+      "vector": 0.7,
+      "exact": 0.2,
+      "fuzzy": 0.1
+    }
+  }
+}

@@ -1,0 +1,29 @@
+# UnityLangPX MCP服务器依赖
+# 使用Python实现MCP服务器
+
+# 核心依赖
+mcp>=1.0.0
+asyncio-mqtt>=0.16.0
+aiofiles>=23.0.0
+pydantic>=2.0.0
+fastapi>=0.104.0
+uvicorn>=0.24.0
+
+# JSON-RPC支持
+jsonrpc-base>=2.0.0
+jsonrpc-async>=1.2.0
+
+# 工具库
+python-multipart>=0.0.6
+python-jose>=3.3.0
+passlib>=1.7.4
+bcrypt>=4.0.0
+
+# 开发依赖
+pytest>=7.4.0
+pytest-asyncio>=0.21.0
+pytest-cov>=4.1.0
+black>=23.0.0
+isort>=5.12.0
+mypy>=1.5.0
+httpx>=0.25.0

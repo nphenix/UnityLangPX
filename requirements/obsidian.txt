@@ -1,0 +1,20 @@
+# UnityLangPX Obsidian插件依赖
+# 注意：这些是Node.js/TypeScript依赖，通过npm安装
+
+# 核心依赖
+@modelcontextprotocol/sdk
+@types/node
+typescript
+obsidian
+axios
+
+# 构建工具
+esbuild
+rollup
+@rollup/plugin-typescript
+@rollup/plugin-node-resolve
+@rollup/plugin-commonjs
+
+# 开发工具
+tsx
+nodemon

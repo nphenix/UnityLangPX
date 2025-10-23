@@ -1,0 +1,98 @@
+# UnityLangPX 默认配置文件
+
+[model]
+provider = "ollama"  # 模型提供商: ollama, openai
+
+[model_ollama]
+host = "http://localhost:11434"
+model = "SimonPu/Hunyuan-MT-Chimera-7B:Q8"
+timeout = 60
+
+[model_openai]
+base_url = "https://api.openai.com/v1"  # API基础URL
+api_key = ""  # API密钥，请填入您的密钥
+model = "gpt-3.5-turbo"  # 模型名称
+max_tokens = 4000  # 最大生成令牌数
+timeout = 60  # 请求超时时间(秒)
+
+
+[translation]
+temperature = 0.1
+max_tokens = 4000
+# chunk_size 现在会根据上下文窗口大小自动计算
+chunk_size = 0  # 0表示自动计算
+overlap = 50   # 减小重叠大小以节省令牌
+source_language = "en"
+target_language = "zh"
+
+[cli]
+input_dir = "input"
+output_dir = "output"
+preserve_structure = true
+parallel_workers = 4
+
+[cache]
+enable_cache = true
+cache_dir = ".translation_cache"
+max_cache_size_mb = 500
+cache_ttl_days = 30
+
+[logging]
+level = "INFO"
+file = "translation.log"
+max_size_mb = 10
+backup_count = 5
+
+[performance]
+monitor_performance = true
+memory_limit_mb = 1024
+enable_profiling = false
+
+[translation_status]
+# 翻译状态管理配置
+enable_status_tracking = true
+status_file = ".translation_status.json"
+auto_retry_failed = true
+max_retry_attempts = 2
+
+[terminology]
+# 简化术语库配置
+enhancement_enabled = true  # 启用简化术语库增强功能
+enable_hybrid_mode = true   # 启用混合模式，结合传统术语库
+fallback_to_traditional = true  # 降级到传统术语库
+max_cache_size = 1000       # 最大缓存条目数
+cache_dir = "data/terminology_cache"  # 缓存目录
+quality_threshold = 0.8     # 质量评估阈值
+
+[mcp]
+# MCP服务器配置
+enabled = true
+host = "localhost"
+port = 8080
+max_connections = 10
+request_timeout = 120
+log_level = "INFO"
+
+[mcp.tools]
+# 工具配置
+translate_text_enabled = true
+translate_file_enabled = true
+batch_translation_enabled = true
+max_file_size_mb = 10
+max_batch_size = 50
+allowed_extensions = [".md", ".txt"]
+
+[mcp.security]
+# 安全配置
+enable_auth = false
+api_key = ""
+allowed_ips = ["127.0.0.1", "::1"]
+rate_limit = 100
+enable_cors = true
+
+[mcp.cache]
+# 缓存配置
+enabled = true
+cache_dir = "data/mcp_cache"
+max_cache_size_mb = 100
+ttl_seconds = 3600

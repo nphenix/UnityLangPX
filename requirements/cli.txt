@@ -1,0 +1,9 @@
+# UnityLangPX CLI工具额外依赖
+-r base.txt
+
+# CLI增强
+tqdm>=4.64.0
+colorama>=0.4.4
+
+# 文件处理
+watchdog>=2.1.0
