@@ -19,7 +19,7 @@ class MCPServerConfig(BaseModel):
     """MCP服务器配置"""
     enabled: bool = Field(default=True, description="是否启用MCP服务器")
     host: str = Field(default="localhost", description="服务器主机地址")
-    port: int = Field(default=8080, description="服务器端口")
+    port: int = Field(default=4010, description="服务器端口")
     max_connections: int = Field(default=10, description="最大连接数")
     request_timeout: int = Field(default=120, description="请求超时时间(秒)")
     log_level: str = Field(default="INFO", description="日志级别")

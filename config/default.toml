@@ -68,7 +68,7 @@ quality_threshold = 0.8     # 质量评估阈值
 # MCP服务器配置
 enabled = true
 host = "localhost"
-port = 8080
+port = 4010
 max_connections = 10
 request_timeout = 120
 log_level = "INFO"

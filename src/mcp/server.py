@@ -160,7 +160,33 @@ class MCPServer:
             self._running = True
             self._start_time = time.time()
             
+            # 获取本机IP地址
+            import socket
+            try:
+                # 获取本机IP地址
+                s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
+                s.connect(("8.8.8.8", 80))
+                local_ip = s.getsockname()[0]
+                s.close()
+            except Exception:
+                local_ip = "localhost"
+            
+            # 显示服务地址
+            server_address = f"http://{local_ip}:{self.config.server.port}"
+            console_message = f"""
+╔══════════════════════════════════════════════════════════════╗
+║                    UnityLangPX MCP 服务器                        ║
+╠══════════════════════════════════════════════════════════════╣
+║  状态: 运行中                                                   ║
+║  地址: {server_address:<55} ║
+║  端口: {self.config.server.port:<55} ║
+║  主机: {self.config.server.host:<55} ║
+║  协议: MCP (标准输入输出)                                        ║
+╚══════════════════════════════════════════════════════════════╝
+"""
+            print(console_message)
             logger.info(f"MCP服务器已启动，监听标准输入输出")
+            logger.info(f"服务地址: {server_address}")
             
             # 开始处理消息
             await self._run_message_loop()
@@ -240,11 +266,22 @@ class MCPServer:
                 await self.protocol_adapter.close()
             
             # 计算运行时间
+            uptime = 0.0
             if self._start_time:
                 uptime = time.time() - self._start_time
-                logger.info(f"服务器运行时间: {uptime:.2f}秒")
             
-            logger.info("MCP服务器已停止")
+            # 显示停止消息
+            console_message = f"""
+╔══════════════════════════════════════════════════════════════╗
+║                    UnityLangPX MCP 服务器                        ║
+╠══════════════════════════════════════════════════════════════╣
+║  状态: 已停止                                                   ║
+║  运行时间: {uptime:.2f} 秒{' ' * (44 - len(f'{uptime:.2f} 秒'))}║
+║  处理请求: {self._request_count} 个{' ' * (44 - len(f'{self._request_count} 个'))}║
+╚══════════════════════════════════════════════════════════════╝
+"""
+            print(console_message)
+            logger.info(f"MCP服务器已停止，运行时间: {uptime:.2f}秒，处理请求: {self._request_count}个")
             
         except Exception as e:
             logger.error(f"停止服务器失败: {str(e)}")

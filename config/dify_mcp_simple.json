@@ -1,0 +1,20 @@
+{
+    "name": "UnityLangPX Translation",
+    "description": "UnityLangPX 翻译服务 MCP 插件",
+    "version": "1.0.0",
+    "author": "UnityLangPX Team",
+    "mcpServers": {
+        "unitylangpx": {
+            "command": "python",
+            "args": [
+                "-m",
+                "src.mcp.server"
+            ],
+            "env": {
+                "PYTHONPATH": ".",
+                "UNITYLANGPX_MCP_ENABLED": "true",
+                "UNITYLANGPX_MCP_LOG_LEVEL": "INFO"
+            }
+        }
+    }
+}

@@ -94,7 +94,7 @@ pip install -r requirements/mcp.txt
 # MCP服务器配置
 enabled = true
 host = "localhost"
-port = 8080
+port = 4010
 max_connections = 10
 request_timeout = 120
 log_level = "INFO"
@@ -131,7 +131,7 @@ timeout = 60
 # MCP服务器配置
 UNITYLANGPX_MCP_ENABLED=true
 UNITYLANGPX_MCP_HOST=localhost
-UNITYLANGPX_MCP_PORT=8080
+UNITYLANGPX_MCP_PORT=4010
 UNITYLANGPX_MCP_LOG_LEVEL=INFO
 
 # Ollama配置
@@ -233,7 +233,7 @@ RUN useradd -m -u 1000 unitylangpx && chown -R unitylangpx:unitylangpx /app
 USER unitylangpx
 
 # 暴露端口
-EXPOSE 8080
+EXPOSE 4010
 
 # 启动命令
 CMD ["python", "-m", "src.mcp.server"]
@@ -250,11 +250,11 @@ services:
       context: .
       dockerfile: Dockerfile.mcp
     ports:
-      - "8080:8080"
+      - "4010:4010"
     environment:
       - UNITYLANGPX_MCP_ENABLED=true
       - UNITYLANGPX_MCP_HOST=0.0.0.0
-      - UNITYLANGPX_MCP_PORT=8080
+      - UNITYLANGPX_MCP_PORT=4010
       - OLLAMA_HOST=http://ollama:11434
     volumes:
       - ./config:/app/config
@@ -349,7 +349,7 @@ python test_mcp_server.py
 ### 7.2 Dify集成
 
 1. 在Dify中配置MCP工具
-2. 添加MCP服务器地址：`http://localhost:8080`
+2. 添加MCP服务器地址：`http://localhost:4010`
 3. 选择可用的翻译工具
 
 ## 8. 监控和维护
