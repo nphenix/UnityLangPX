@@ -313,14 +313,28 @@ export UNITYLANGPX_MCP_STATIC_DIR=static
 ### 启动命令
 
 ```bash
-# 使用默认配置启动
-python -m src.mcp.server
+# 使用默认配置启动（推荐方式）
+python scripts/run_mcp_server.py
 
-# 使用自定义配置启动
-python -m src.mcp.server --config config/dify_mcp_config.json
+# 使用自定义配置文件
+python scripts/run_mcp_server.py --config config/dify_mcp_simple.json
 
 # 设置日志级别
-python -m src.mcp.server --log-level DEBUG
+python scripts/run_mcp_server.py --log-level DEBUG
+
+# 或者直接使用模块方式
+python -m src.mcp.server --config config/dify_mcp_config.json
+```
+
+在Windows上，也可以使用批处理文件：
+```cmd
+scripts\run_mcp_server.bat
+```
+
+在Linux/macOS上，可以使用shell脚本：
+```bash
+chmod +x scripts/run_mcp_server.sh
+./scripts/run_mcp_server.sh
 ```
 
 ## 结论

@@ -50,9 +50,54 @@ class FaviconHandler(SimpleHTTPRequestHandler):
                     self.wfile.write(f.read())
             else:
                 self.send_error(404, "Favicon not found")
+        elif self.path == '/' or self.path == '/health':
+            # 健康检查端点
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            response = {"status": "ok", "service": "UnityLangPX MCP Server"}
+            self.wfile.write(json.dumps(response).encode('utf-8'))
         else:
             # 其他请求返回404
             self.send_error(404, "Not Found")
+    
+    def do_POST(self):
+        """处理POST请求 - 用于MCP JSON-RPC"""
+        try:
+            # 读取请求体
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            
+            # 这里可以添加MCP协议处理逻辑
+            # 目前返回一个简单的响应
+            self.send_response(200)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            
+            # 简单的响应
+            response = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "result": {
+                    "message": "MCP服务器正在运行，但需要通过标准输入输出进行通信"
+                }
+            }
+            self.wfile.write(json.dumps(response).encode('utf-8'))
+            
+        except Exception as e:
+            logger.error(f"处理POST请求失败: {str(e)}")
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            error_response = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {
+                    "code": -32603,
+                    "message": f"内部错误: {str(e)}"
+                }
+            }
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
     
     def log_message(self, format, *args):
         """重写日志方法，避免输出到标准输出"""
@@ -88,6 +133,8 @@ class MCPServer:
         # HTTP服务器相关
         self._http_server: Optional[HTTPServer] = None
         self._http_server_thread: Optional[threading.Thread] = None
+        self._mcp_http_server: Optional[HTTPServer] = None
+        self._mcp_http_server_thread: Optional[threading.Thread] = None
         
         # 统计信息
         self._start_time = None
@@ -213,6 +260,9 @@ class MCPServer:
             if self.config.server.enable_http_server:
                 await self._start_http_server()
             
+            # 启动MCP HTTP服务器（用于处理Dify的HTTP请求）
+            await self._start_mcp_http_server()
+            
             # 显示服务地址
             server_address = f"http://{local_ip}:{self.config.server.port}"
             http_address = f"http://{local_ip}:{self.config.server.http_port}" if self.config.server.enable_http_server else "未启用"
@@ -221,19 +271,19 @@ class MCPServer:
 ║                    UnityLangPX MCP 服务器                        ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  状态: 运行中                                                   ║
-║  MCP地址: {server_address:<53} ║
-║  HTTP地址: {http_address:<53} ║
-║  MCP端口: {self.config.server.port:<55} ║
-║  HTTP端口: {self.config.server.http_port if self.config.server.enable_http_server else 'N/A':<55} ║
+║  HTTP服务地址: {server_address:<49} ║
+║  favicon地址: {http_address}/favicon.ico:<39} ║
+║  主端口: {self.config.server.port:<55} ║
+║  favicon端口: {self.config.server.http_port if self.config.server.enable_http_server else 'N/A':<51} ║
 ║  主机: {self.config.server.host:<55} ║
-║  协议: MCP (标准输入输出) + HTTP (favicon)                      ║
+║  协议: HTTP (Dify集成) + MCP (标准输入输出)                     ║
 ╚══════════════════════════════════════════════════════════════╝
 """
             print(console_message)
-            logger.info(f"MCP服务器已启动，监听标准输入输出")
-            logger.info(f"MCP服务地址: {server_address}")
+            logger.info(f"MCP服务器已启动，支持HTTP和标准输入输出")
+            logger.info(f"HTTP服务地址: {server_address}")
             if self.config.server.enable_http_server:
-                logger.info(f"HTTP服务地址: {http_address}/favicon.ico")
+                logger.info(f"favicon地址: {http_address}/favicon.ico")
             
             # 开始处理消息
             await self._run_message_loop()
@@ -311,6 +361,9 @@ class MCPServer:
             # 停止HTTP服务器
             await self._stop_http_server()
             
+            # 停止MCP HTTP服务器
+            await self._stop_mcp_http_server()
+            
             # 关闭协议适配器
             if self.protocol_adapter:
                 await self.protocol_adapter.close()
@@ -375,6 +428,46 @@ class MCPServer:
                     
         except Exception as e:
             logger.error(f"停止HTTP服务器失败: {str(e)}")
+    
+    async def _start_mcp_http_server(self):
+        """启动MCP HTTP服务器（用于处理Dify的HTTP请求）"""
+        try:
+            # 创建HTTP服务器
+            def handler_factory(*args, **kwargs):
+                return FaviconHandler(*args, static_dir=self.config.server.static_dir, **kwargs)
+            
+            self._mcp_http_server = HTTPServer(
+                (self.config.server.host, self.config.server.port),
+                handler_factory
+            )
+            
+            # 在单独的线程中运行HTTP服务器
+            self._mcp_http_server_thread = threading.Thread(
+                target=self._mcp_http_server.serve_forever,
+                daemon=True
+            )
+            self._mcp_http_server_thread.start()
+            
+            logger.info(f"MCP HTTP服务器已启动，地址: http://{self.config.server.host}:{self.config.server.port}")
+            
+        except Exception as e:
+            logger.error(f"启动MCP HTTP服务器失败: {str(e)}")
+            raise
+    
+    async def _stop_mcp_http_server(self):
+        """停止MCP HTTP服务器"""
+        try:
+            if self._mcp_http_server:
+                self._mcp_http_server.shutdown()
+                self._mcp_http_server.server_close()
+                logger.info("MCP HTTP服务器已停止")
+                
+                # 等待线程结束
+                if self._mcp_http_server_thread and self._mcp_http_server_thread.is_alive():
+                    self._mcp_http_server_thread.join(timeout=5)
+                    
+        except Exception as e:
+            logger.error(f"停止MCP HTTP服务器失败: {str(e)}")
     
     async def get_status(self) -> Dict[str, Any]:
         """

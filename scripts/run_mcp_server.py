@@ -99,9 +99,23 @@ if __name__ == "__main__":
     # 设置环境变量
     os.environ.setdefault("PYTHONPATH", str(project_root))
     
+    # 解析命令行参数
+    import argparse
+    parser = argparse.ArgumentParser(description="UnityLangPX MCP服务器")
+    parser.add_argument("--config", type=str, default="config/dify_mcp_config.json", help="配置文件路径")
+    parser.add_argument("--log-level", type=str, default="INFO",
+                       choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
+                       help="日志级别")
+    
+    args = parser.parse_args()
+    
+    # 设置日志级别
+    if args.log_level:
+        os.environ["UNITYLANGPX_MCP_LOG_LEVEL"] = args.log_level
+    
     # 运行服务器
     try:
-        asyncio.run(run_with_checks())
+        asyncio.run(run_with_checks(args.config))
     except KeyboardInterrupt:
         print("\n服务器已停止")
     except Exception as e:
