@@ -8,6 +8,7 @@ UnityLangPX 批处理器模块
 import time
 import asyncio
 import threading
+from pathlib import Path
 from typing import Dict, List, Optional, Any, Callable, Tuple
 from dataclasses import dataclass, field
 from enum import Enum
@@ -770,7 +771,6 @@ class FileBatchProcessor(BatchProcessor):
             处理统计信息
         """
         import os
-        from pathlib import Path
         import time
         
         # 查找文件
@@ -870,6 +870,7 @@ class FileBatchProcessor(BatchProcessor):
     
     def save_failed_files_list(self, output_path: Path):
         """保存失败文件列表"""
+        output_path = Path(output_path)  # 确保是Path对象
         with open(output_path, 'w', encoding='utf-8') as f:
             f.write("# 翻译失败的文件\n\n")
             for task_id in self._completed_tasks:
