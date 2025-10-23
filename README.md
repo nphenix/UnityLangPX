@@ -263,7 +263,7 @@ cat test_zh.md
 
 ## 📄 许可证
 
-MIT License
+Apache License 2.0
 
 ## 📝 更新日志
 
@@ -272,7 +272,6 @@ MIT License
 ## 🔗 相关链接
 
 - **项目主页**：https://gitee.com/unitylangpx/unitylangpx
-- **文档网站**：https://unitylangpx.readthedocs.io
 - **问题反馈**：https://gitee.com/unitylangpx/unitylangpx/issues
 
 ---
