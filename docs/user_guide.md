@@ -63,7 +63,7 @@ ollama pull SimonPu/Hunyuan-MT-Chimera-7B:Q8
 
 ```bash
 # 克隆仓库
-git clone https://gitee.com/unitylangpx/unitylangpx.git
+git clone https://github.com/nphenix/UnityLangPX.git
 cd unitylangpx
 
 # 创建虚拟环境

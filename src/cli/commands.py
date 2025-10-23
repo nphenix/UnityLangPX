@@ -24,7 +24,7 @@ from ..core import (
     init_logger, get_logger, LoggerManager,
     UnityLangPXError, ConfigurationError
 )
-from ..core.batch_processor import BatchProcessor
+from ..core.batch_processor import FileBatchProcessor
 from ..core.exceptions import APIConnectionError, ModelNotFoundError
 
 # 设置默认编码为UTF-8
@@ -284,7 +284,7 @@ def _translate_directory(translator: Translator, input_dir: Path,
         output_dir = Path(translator.config.cli.output_dir)
     
     # 创建批处理器
-    batch_processor = BatchProcessor(translator.config, translator)
+    batch_processor = FileBatchProcessor(translator.config, translator)
     
     # 设置进度回调
     def progress_callback(processed: int, total: int, current_file: str):

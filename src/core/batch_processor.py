@@ -728,9 +728,202 @@ class TerminologyBatchProcessor:
         }
 
 
+class FileBatchProcessor(BatchProcessor):
+    """文件批处理器，用于批量处理文件翻译"""
+    
+    def __init__(self, config: Optional[BatchConfig] = None, translator: Optional[Any] = None):
+        """
+        初始化文件批处理器
+        
+        Args:
+            config: 批处理配置
+            translator: 翻译器实例
+        """
+        super().__init__(config)
+        self.translator = translator
+        self.progress_callback = None
+        
+        # 注册文件处理器
+        self.register_processor('file_translation', self._process_file_translation)
+        
+        logger.info("文件批处理器初始化完成")
+    
+    def set_progress_callback(self, callback: Callable):
+        """设置进度回调函数"""
+        self.progress_callback = callback
+        logger.debug("设置进度回调函数")
+    
+    def process_directory(self, input_dir: Path, output_dir: Path,
+                         pattern: str = "*.md", recursive: bool = False,
+                         overwrite: bool = False) -> Any:
+        """
+        处理目录中的文件
+        
+        Args:
+            input_dir: 输入目录
+            output_dir: 输出目录
+            pattern: 文件模式
+            recursive: 是否递归处理
+            overwrite: 是否覆盖已存在的文件
+            
+        Returns:
+            处理统计信息
+        """
+        import os
+        from pathlib import Path
+        import time
+        
+        # 查找文件
+        if recursive:
+            files = list(Path(input_dir).rglob(pattern))
+        else:
+            files = list(Path(input_dir).glob(pattern))
+        
+        # 过滤文件
+        files = [f for f in files if f.is_file()]
+        
+        if not files:
+            logger.warning(f"在目录 {input_dir} 中未找到匹配 {pattern} 的文件")
+            return BatchStatistics(
+                total_files=0,
+                processed_files=0,
+                failed_files=0,
+                skipped_files=0,
+                total_chars=0,
+                translated_chars=0,
+                duration=0.0,
+                success_rate=0.0,
+                average_speed=0.0,
+                failed_files_list=[]
+            )
+        
+        # 创建输出目录
+        output_dir = Path(output_dir)
+        output_dir.mkdir(parents=True, exist_ok=True)
+        
+        # 启动批处理器
+        self.start()
+        
+        # 提交任务
+        task_ids = []
+        for file_path in files:
+            # 确定输出文件路径
+            relative_path = file_path.relative_to(input_dir)
+            output_file = output_dir / relative_path
+            
+            # 检查文件是否已存在
+            if output_file.exists() and not overwrite:
+                logger.info(f"跳过已存在的文件: {output_file}")
+                continue
+            
+            # 提交翻译任务
+            task_data = {
+                'input_file': file_path,
+                'output_file': output_file
+            }
+            task_id = self.submit_task('file_translation', task_data)
+            task_ids.append(task_id)
+        
+        # 等待所有任务完成
+        completed_tasks = []
+        failed_tasks = []
+        
+        for task_id in task_ids:
+            result = self.get_task_result(task_id, timeout=300)  # 5分钟超时
+            if result and result.success:
+                completed_tasks.append(result)
+            else:
+                failed_tasks.append(task_id)
+        
+        # 停止批处理器
+        self.stop()
+        
+        # 计算统计信息
+        total_files = len(files)
+        processed_files = len(completed_tasks)
+        failed_files = len(failed_tasks)
+        skipped_files = total_files - processed_files - failed_files
+        
+        # 计算字符数
+        total_chars = 0
+        translated_chars = 0
+        for task in completed_tasks:
+            if hasattr(task.result, 'chars_translated'):
+                total_chars += getattr(task.result, 'total_chars', 0)
+                translated_chars += getattr(task.result, 'chars_translated', 0)
+        
+        # 创建统计对象
+        stats = BatchStatistics(
+            total_files=total_files,
+            processed_files=processed_files,
+            failed_files=failed_files,
+            skipped_files=skipped_files,
+            total_chars=total_chars,
+            translated_chars=translated_chars,
+            duration=0.0,  # 这里应该计算实际耗时
+            success_rate=(processed_files / total_files * 100) if total_files > 0 else 0.0,
+            average_speed=(translated_chars / 1.0) if translated_chars > 0 else 0.0,  # 这里应该计算实际速度
+            failed_files_list=[task_id for task_id in failed_tasks]
+        )
+        
+        return stats
+    
+    def save_failed_files_list(self, output_path: Path):
+        """保存失败文件列表"""
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write("# 翻译失败的文件\n\n")
+            for task_id in self._completed_tasks:
+                task = self._completed_tasks[task_id]
+                if task.status == TaskStatus.FAILED:
+                    f.write(f"- {task.data.get('input_file', 'Unknown')}: {task.error}\n")
+    
+    def _process_file_translation(self, data: Dict[str, Any]) -> Any:
+        """处理文件翻译任务"""
+        if not self.translator:
+            raise ValueError("翻译器未设置")
+        
+        input_file = data['input_file']
+        output_file = data['output_file']
+        
+        # 更新进度
+        if self.progress_callback:
+            self.progress_callback(0, 1, str(input_file))
+        
+        # 执行翻译
+        result = self.translator.translate_file(input_file, output_file)
+        
+        # 更新进度
+        if self.progress_callback:
+            self.progress_callback(1, 1, str(input_file))
+        
+        return result
+
+
+@dataclass
+class BatchStatistics:
+    """批处理统计信息"""
+    total_files: int
+    processed_files: int
+    failed_files: int
+    skipped_files: int
+    total_chars: int
+    translated_chars: int
+    duration: float
+    success_rate: float
+    average_speed: float
+    failed_files_list: List[str]
+
+
 # 便捷函数
 def get_terminology_batch_processor(config: Optional[BatchConfig] = None) -> TerminologyBatchProcessor:
     """获取术语批处理器实例"""
     processor = TerminologyBatchProcessor(config)
+    processor.start()
+    return processor
+
+
+def get_file_batch_processor(config: Optional[BatchConfig] = None, translator: Optional[Any] = None) -> FileBatchProcessor:
+    """获取文件批处理器实例"""
+    processor = FileBatchProcessor(config, translator)
     processor.start()
     return processor
