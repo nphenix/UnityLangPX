@@ -284,7 +284,7 @@ def _translate_directory(translator: Translator, input_dir: Path,
         output_dir = Path(translator.config.cli.output_dir)
     
     # 创建批处理器
-    batch_processor = FileBatchProcessor(translator.config, translator)
+    batch_processor = FileBatchProcessor(None, translator)
     
     # 设置进度回调
     def progress_callback(processed: int, total: int, current_file: str):

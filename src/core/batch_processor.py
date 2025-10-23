@@ -740,6 +740,19 @@ class FileBatchProcessor(BatchProcessor):
             config: 批处理配置
             translator: 翻译器实例
         """
+        # 如果没有提供批处理配置，尝试从翻译器配置创建
+        if config is None and translator is not None:
+            config = BatchConfig(
+                batch_size=10,
+                max_wait_time=1.0,
+                max_concurrent_batches=3,
+                worker_threads=getattr(translator.config.cli, 'parallel_workers', 2),
+                enable_adaptive_batching=True,
+                min_batch_size=2,
+                max_batch_size=20,
+                target_processing_time=2.0
+            )
+        
         super().__init__(config)
         self.translator = translator
         self.progress_callback = None
