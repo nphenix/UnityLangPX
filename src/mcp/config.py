@@ -23,11 +23,20 @@ class MCPServerConfig(BaseModel):
     max_connections: int = Field(default=10, description="最大连接数")
     request_timeout: int = Field(default=120, description="请求超时时间(秒)")
     log_level: str = Field(default="INFO", description="日志级别")
+    enable_http_server: bool = Field(default=True, description="是否启用HTTP服务器提供静态文件")
+    http_port: int = Field(default=4011, description="HTTP服务器端口")
+    static_dir: str = Field(default="static", description="静态文件目录")
     
     @validator('port')
     def validate_port(cls, v):
         if not 1 <= v <= 65535:
             raise ValueError('端口号必须在1-65535范围内')
+        return v
+    
+    @validator('http_port')
+    def validate_http_port(cls, v):
+        if not 1 <= v <= 65535:
+            raise ValueError('HTTP服务器端口必须在1-65535范围内')
         return v
     
     @validator('log_level')
@@ -182,6 +191,15 @@ class MCPConfig(BaseSettings):
         
         if os.getenv("UNITYLANGPX_MCP_LOG_LEVEL"):
             self.server.log_level = os.getenv("UNITYLANGPX_MCP_LOG_LEVEL")
+        
+        if os.getenv("UNITYLANGPX_MCP_ENABLE_HTTP_SERVER"):
+            self.server.enable_http_server = os.getenv("UNITYLANGPX_MCP_ENABLE_HTTP_SERVER").lower() == "true"
+        
+        if os.getenv("UNITYLANGPX_MCP_HTTP_PORT"):
+            self.server.http_port = int(os.getenv("UNITYLANGPX_MCP_HTTP_PORT"))
+        
+        if os.getenv("UNITYLANGPX_MCP_STATIC_DIR"):
+            self.server.static_dir = os.getenv("UNITYLANGPX_MCP_STATIC_DIR")
         
         # 安全配置
         if os.getenv("UNITYLANGPX_MCP_API_KEY"):

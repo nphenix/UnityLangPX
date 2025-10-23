@@ -13,7 +13,7 @@ Model Context Protocol (MCP) 是一种开放协议，允许 AI 模型安全地�
 ## 前提条件
 
 - 已部署的 Dify 实例（本地或云端）
-- 运行中的 MCP 服务器
+- 运行中的 UnityLangPX MCP 服务器（已启用 HTTP 服务）
 - Dify 管理员权限
 - 基本的 API 和工具集成知识
 
@@ -21,12 +21,15 @@ Model Context Protocol (MCP) 是一种开放协议，允许 AI 模型安全地�
 
 ### 方法一：通过自定义工具集成
 
-1. **准备 MCP 服务器的 API 端点**
+1. **准备 MCP 服务器**
 
-   确保您的 MCP 服务器通过 HTTP API 暴露其功能。您需要以下信息：
-   - MCP 服务器的 API 基础 URL
+   确保您的 UnityLangPX MCP 服务器已启动并启用了 HTTP 服务。您需要以下信息：
+   - MCP 服务器的地址（通常是 `localhost:4010`）
+   - HTTP 服务器地址（用于提供 favicon，通常是 `localhost:4011`）
    - 认证凭据（如果需要）
    - 可用工具列表及其参数
+
+   **重要提示**：UnityLangPX MCP 服务器现在内置了 HTTP 服务器，专门用于提供 favicon.ico 文件，解决 Dify 尝试从 Google 获取图标的问题。
 
 2. **在 Dify 中创建自定义工具**
 
@@ -37,7 +40,8 @@ Model Context Protocol (MCP) 是一种开放协议，允许 AI 模型安全地�
 3. **配置工具 API**
 
    - **工具名称**：为您的 MCP 工具集指定一个描述性名称
-   - **API 端点**：输入 MCP 服务器的 API URL
+   - **API 端点**：输入 MCP 服务器的 URL（通常是 `http://localhost:4010`）
+   - **图标地址**：输入 HTTP 服务器的 favicon 地址（`http://localhost:4011/favicon.ico`）
    - **认证方法**：根据 MCP 服务器配置选择适当的认证方式
    - **请求方法**：通常为 POST
 
@@ -230,12 +234,20 @@ Model Context Protocol (MCP) 是一种开放协议，允许 AI 模型安全地�
 
 5. **Google 服务访问问题**
 
-   - 如果在 Dify 日志中看到访问 Google 服务的错误（如 `https://www.google.com/s2/favicons`），这可能是 Dify 尝试获取工具图标
-   - 这个问题不影响 MCP 工具的实际功能，只是 Dify 尝试获取工具的 favicon
-   - 可以通过以下方式解决：
-     - 确保网络可以访问 Google 服务
-     - 或者在 Dify 中手动设置工具图标
-     - 或者忽略此警告，因为它不影响工具功能
+   - **问题原因**：Dify 在注册 MCP 服务时会尝试获取工具的 favicon 图标，默认会访问 Google 服务
+   - **解决方案**：UnityLangPX MCP 服务器已内置 HTTP 服务器专门提供 favicon.ico 文件
+   - **配置方法**：
+     - 在 Dify 的「添加 MCP 服务」表单中，图标地址一栏手动填入：`http://<your-mcp-host>:<http-port>/favicon.ico`
+     - 例如：`http://localhost:4011/favicon.ico`（默认端口）
+   - **验证方法**：保存并授权后，Dify 前端会直接使用您提供的图标地址，不再尝试访问 Google 服务
+   - **配置示例**：
+     ```json
+     {
+       "name": "UnityLangPX MCP 服务",
+       "url": "http://localhost:4010",
+       "icon": "http://localhost:4011/favicon.ico"
+     }
+     ```
 
 ## 进阶用法
 
@@ -255,9 +267,67 @@ Model Context Protocol (MCP) 是一种开放协议，允许 AI 模型安全地�
 2. 处理分块响应并将其传递给用户
 3. 实现适当的错误处理和重试机制
 
+## 配置参考
+
+### MCP 服务器配置文件
+
+创建或修改 `config/dify_mcp_config.json` 文件：
+
+```json
+{
+  "server": {
+    "enabled": true,
+    "host": "localhost",
+    "port": 4010,
+    "enable_http_server": true,
+    "http_port": 4011,
+    "static_dir": "static"
+  },
+  "tools": {
+    "translate_text_enabled": true,
+    "translate_file_enabled": true,
+    "batch_translation_enabled": true
+  },
+  "security": {
+    "enable_auth": false,
+    "rate_limit": 100
+  }
+}
+```
+
+### 环境变量配置
+
+您也可以通过环境变量配置 MCP 服务器：
+
+```bash
+# 启用 HTTP 服务器
+export UNITYLANGPX_MCP_ENABLE_HTTP_SERVER=true
+
+# 设置 HTTP 服务器端口
+export UNITYLANGPX_MCP_HTTP_PORT=4011
+
+# 设置静态文件目录
+export UNITYLANGPX_MCP_STATIC_DIR=static
+```
+
+### 启动命令
+
+```bash
+# 使用默认配置启动
+python -m src.mcp.server
+
+# 使用自定义配置启动
+python -m src.mcp.server --config config/dify_mcp_config.json
+
+# 设置日志级别
+python -m src.mcp.server --log-level DEBUG
+```
+
 ## 结论
 
-通过将 MCP 服务器与 Dify 集成，您可以显著扩展 Dify 应用的功能，使其能够访问外部系统和服务。这种集成提供了灵活性和可扩展性，使您能够根据特定需求定制 AI 应用。
+通过将 MCP 服务器与 Dify 集成，您可以显著扩展 Dify 应用的功能，使其能够访问外部系统和服务。UnityLangPX MCP 服务器现在内置了 HTTP 服务器，专门解决 Dify 尝试从 Google 获取图标的问题，使集成更加顺畅。
+
+这种集成提供了灵活性和可扩展性，使您能够根据特定需求定制 AI 应用。
 
 ## 参考资料
 

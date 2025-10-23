@@ -9,8 +9,11 @@ import sys
 import json
 import signal
 import time
+import threading
 from typing import Optional, Dict, Any
 from pathlib import Path
+from http.server import HTTPServer, SimpleHTTPRequestHandler
+import socket
 
 from .config import MCPConfig, load_mcp_config
 from .protocol.handler import MessageHandler, create_message_handler
@@ -24,6 +27,36 @@ from ..core.logger import get_logger, init_logger
 from ..core.config import Config
 
 logger = get_logger(__name__)
+
+
+class FaviconHandler(SimpleHTTPRequestHandler):
+    """简单的HTTP请求处理器，专门用于提供favicon.ico"""
+    
+    def __init__(self, *args, static_dir="static", **kwargs):
+        self.static_dir = static_dir
+        super().__init__(*args, directory=static_dir, **kwargs)
+    
+    def do_GET(self):
+        """处理GET请求"""
+        if self.path == '/favicon.ico':
+            # 提供favicon.ico文件
+            favicon_path = Path(self.static_dir) / 'favicon.ico'
+            if favicon_path.exists():
+                self.send_response(200)
+                self.send_header('Content-Type', 'image/x-icon')
+                self.send_header('Content-Length', str(favicon_path.stat().st_size))
+                self.end_headers()
+                with open(favicon_path, 'rb') as f:
+                    self.wfile.write(f.read())
+            else:
+                self.send_error(404, "Favicon not found")
+        else:
+            # 其他请求返回404
+            self.send_error(404, "Not Found")
+    
+    def log_message(self, format, *args):
+        """重写日志方法，避免输出到标准输出"""
+        logger.debug(f"HTTP服务器: {format % args}")
 
 
 class MCPServer:
@@ -51,6 +84,10 @@ class MCPServer:
         # 服务器状态
         self._running = False
         self._shutdown_event = asyncio.Event()
+        
+        # HTTP服务器相关
+        self._http_server: Optional[HTTPServer] = None
+        self._http_server_thread: Optional[threading.Thread] = None
         
         # 统计信息
         self._start_time = None
@@ -172,22 +209,31 @@ class MCPServer:
             except Exception:
                 local_ip = "localhost"
             
+            # 启动HTTP服务器（如果启用）
+            if self.config.server.enable_http_server:
+                await self._start_http_server()
+            
             # 显示服务地址
             server_address = f"http://{local_ip}:{self.config.server.port}"
+            http_address = f"http://{local_ip}:{self.config.server.http_port}" if self.config.server.enable_http_server else "未启用"
             console_message = f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                    UnityLangPX MCP 服务器                        ║
 ╠══════════════════════════════════════════════════════════════╣
 ║  状态: 运行中                                                   ║
-║  地址: {server_address:<55} ║
-║  端口: {self.config.server.port:<55} ║
+║  MCP地址: {server_address:<53} ║
+║  HTTP地址: {http_address:<53} ║
+║  MCP端口: {self.config.server.port:<55} ║
+║  HTTP端口: {self.config.server.http_port if self.config.server.enable_http_server else 'N/A':<55} ║
 ║  主机: {self.config.server.host:<55} ║
-║  协议: MCP (标准输入输出)                                        ║
+║  协议: MCP (标准输入输出) + HTTP (favicon)                      ║
 ╚══════════════════════════════════════════════════════════════╝
 """
             print(console_message)
             logger.info(f"MCP服务器已启动，监听标准输入输出")
-            logger.info(f"服务地址: {server_address}")
+            logger.info(f"MCP服务地址: {server_address}")
+            if self.config.server.enable_http_server:
+                logger.info(f"HTTP服务地址: {http_address}/favicon.ico")
             
             # 开始处理消息
             await self._run_message_loop()
@@ -262,6 +308,9 @@ class MCPServer:
             self._running = False
             self._shutdown_event.set()
             
+            # 停止HTTP服务器
+            await self._stop_http_server()
+            
             # 关闭协议适配器
             if self.protocol_adapter:
                 await self.protocol_adapter.close()
@@ -286,6 +335,46 @@ class MCPServer:
             
         except Exception as e:
             logger.error(f"停止服务器失败: {str(e)}")
+    
+    async def _start_http_server(self):
+        """启动HTTP服务器"""
+        try:
+            # 创建HTTP服务器
+            def handler_factory(*args, **kwargs):
+                return FaviconHandler(*args, static_dir=self.config.server.static_dir, **kwargs)
+            
+            self._http_server = HTTPServer(
+                (self.config.server.host, self.config.server.http_port),
+                handler_factory
+            )
+            
+            # 在单独的线程中运行HTTP服务器
+            self._http_server_thread = threading.Thread(
+                target=self._http_server.serve_forever,
+                daemon=True
+            )
+            self._http_server_thread.start()
+            
+            logger.info(f"HTTP服务器已启动，地址: http://{self.config.server.host}:{self.config.server.http_port}/favicon.ico")
+            
+        except Exception as e:
+            logger.error(f"启动HTTP服务器失败: {str(e)}")
+            # 不抛出异常，允许MCP服务器继续运行
+    
+    async def _stop_http_server(self):
+        """停止HTTP服务器"""
+        try:
+            if self._http_server:
+                self._http_server.shutdown()
+                self._http_server.server_close()
+                logger.info("HTTP服务器已停止")
+                
+                # 等待线程结束
+                if self._http_server_thread and self._http_server_thread.is_alive():
+                    self._http_server_thread.join(timeout=5)
+                    
+        except Exception as e:
+            logger.error(f"停止HTTP服务器失败: {str(e)}")
     
     async def get_status(self) -> Dict[str, Any]:
         """
