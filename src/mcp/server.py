@@ -163,9 +163,10 @@ class MCPServer:
             # 获取本机IP地址
             import socket
             try:
-                # 获取本机IP地址
+                # 获取本机IP地址 - 使用本地连接避免外部网络访问
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                s.connect(("8.8.8.8", 80))
+                # 连接到本地地址而不是外部地址
+                s.connect(("127.0.0.1", 80))
                 local_ip = s.getsockname()[0]
                 s.close()
             except Exception:
