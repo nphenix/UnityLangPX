@@ -8,7 +8,7 @@
 api-1 | 2025-10-24T12:12:23.429739188Z Traceback (most recent call last):
 api-1 | 2025-10-24T12:12:23.429740678Z   File "/app/api/core/mcp/client/sse_client.py", line 209, in _wait_for_endpoint
 api-1 | 2025-10-24T12:12:23.429741962Z     status = status_queue.get(timeout=1)
-api-1 | 2025-10-24T12:12:23.429743030Z              ^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1 | 2025-10-24T12:12:23.429743030Z              ^^^^^^^^^^^^^^^^^^^^^^^
 api-1 | 2025-10-24T12:12:23.429744182Z   File "/usr/local/lib/python3.12/queue.py", line 179, in get
 api-1 | 2025-10-24T12:12:23.429745301Z     raise Empty
 api-1 | 2025-10-24T12:12:23.429746296Z _queue.Empty
@@ -17,7 +17,7 @@ api-1 | 2025-10-24T12:12:23.429749331Z During handling of the above exception, a
 api-1 | 2025-10-24T12:12:23.429750298Z Traceback (most recent call last):
 api-1 | 2025-10-24T12:12:23.429751363Z   File "/app/api/core/mcp/client/sse_client.py", line 287, in sse_client
 api-1 | 2025-10-24T12:12:23.429752500Z     read_queue, write_queue = transport.connect(executor, client, event_source)
-api-1 | 2025-10-24T12:12:23.429753551Z                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+api-1 | 2025-10-24T12:12:23.429753551Z                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
 api-1 | 2025-10-24T12:12:23.429754670Z   File "/app/api/core/mcp/client/sse_client.py", line 244, in connect
 api-1 | 2025-10-24T12:12:23.429755723Z     endpoint_url = self._wait_for_endpoint(status_queue)
 api-1 | 2025-10-24T12:12:23.429756981Z                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
@@ -30,23 +30,43 @@ api-1 | 2025-10-24T12:12:23.429761124Z ValueError: failed to get endpoint URL
 
 错误信息显示 `ValueError: failed to get endpoint URL`，这表明 Dify 无法从 MCP 服务器获取正确的端点 URL。
 
-经过分析，问题出在 SSE (Server-Sent Events) 端点的实现上。Dify 的 MCP 客户端期望在 SSE 连接中获取一个特定的端点 URL，但当前的实现没有正确提供这个信息。
+经过分析 Dify 的 SSE 客户端代码，发现问题出在 SSE (Server-Sent Events) 端点的实现上。Dify 的 MCP 客户端期望：
+
+1. SSE 事件类型为 "endpoint"
+2. 事件数据是一个相对路径，如 "/"
+3. 客户端会使用 `urljoin(self.url, sse_data)` 来构建完整的端点 URL
+
+我们的原始实现有两个问题：
+1. 端点 URL 格式不正确（使用了完整 URL 而不是相对路径）
+2. 在发送端点事件后立即发送了其他事件，可能干扰了 Dify 客户端的处理
 
 ## 修复方案
 
 ### 1. 修改 SSE 端点实现
 
-在 `src/mcp/server.py` 文件中的 `handle_sse` 方法中，将端点 URL 从完整的 URL 改为相对路径 `/`：
+在 `src/mcp/server.py` 文件中的 `handle_sse` 方法中，进行了以下修改：
 
-```python
-# 修改前
-endpoint_url = f"{scheme}://{host}/"
+1. 将端点 URL 从完整的 URL 改为相对路径 `/`：
+   ```python
+   # 修改前
+   endpoint_url = f"{scheme}://{host}/"
+   
+   # 修改后
+   endpoint_url = "/"
+   ```
 
-# 修改后
-endpoint_url = "/"
-```
-
-这是因为 Dify 的 MCP 客户端期望的是相对路径，而不是完整的 URL。
+2. 调整事件发送顺序，确保端点事件是第一个发送的事件：
+   ```python
+   # 首先发送端点URL事件 - 这是Dify需要的
+   self.wfile.write(b"event: endpoint\n")
+   self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
+   self.wfile.flush()
+   
+   # 等待一段时间，确保Dify客户端接收到端点事件
+   time.sleep(2)  # 等待2秒，确保客户端处理完端点事件
+   
+   # 然后发送其他事件
+   ```
 
 ### 2. 更新配置文件
 
@@ -60,7 +80,7 @@ endpoint_url = "/"
 
 ## 测试验证
 
-创建了两个测试脚本来验证修复：
+创建了两个测试脚本验证修复：
 
 1. `scripts/test_sse_fix.py` - 测试 SSE 端点是否正确发送端点事件
 2. `scripts/test_dify_integration.py` - 测试 Dify 集成是否正常
@@ -78,8 +98,6 @@ UnityLangPX MCP 服务器 Dify 集成测试
 
 2. 测试 SSE 端点...
 [OK] SSE 端点连接成功
-收到事件: event: connect
-收到事件: data: {"type":"connected","message":"SSE connection established"}
 收到事件: event: endpoint
 [OK] 收到端点事件
 收到事件: data: /

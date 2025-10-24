@@ -195,31 +195,24 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             
             logger.info(f"SSE端点URL: {endpoint_url}")
             
-            # 发送初始连接事件
-            self.wfile.write(b"event: connect\n")
-            self.wfile.write(b"data: {\"type\":\"connected\",\"message\":\"SSE connection established\"}\n\n")
-            self.wfile.flush()
-            
             # 发送端点URL事件 - 这是Dify需要的
             # 根据Dify的MCP客户端实现，这里应该返回根路径 "/"
+            # 注意：只发送端点事件，不发送其他事件，避免干扰Dify客户端
             self.wfile.write(b"event: endpoint\n")
             self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
             self.wfile.flush()
             
-            # 发送服务器信息事件
-            self.wfile.write(b"event: server_info\n")
-            server_info = json.dumps({
-                "type": "server_info",
-                "name": "UnityLangPX MCP Server",
-                "version": "1.0.0",
-                "capabilities": ["tools", "translation", "batch_processing"]
-            })
-            self.wfile.write(f"data: {server_info}\n\n".encode('utf-8'))
-            self.wfile.flush()
-            
-            # 发送心跳事件，保持连接更长时间
+            # 等待一段时间，确保Dify客户端接收到端点事件
             import time
             try:
+                time.sleep(2)  # 等待2秒，确保客户端处理完端点事件
+                
+                # 然后发送其他事件
+                self.wfile.write(b"event: connect\n")
+                self.wfile.write(b"data: {\"type\":\"connected\",\"message\":\"SSE connection established\"}\n\n")
+                self.wfile.flush()
+                
+                # 发送心跳事件，保持连接更长时间
                 for i in range(30):  # 发送30次心跳，保持连接30秒
                     time.sleep(1)
                     self.wfile.write(b"event: heartbeat\n")
