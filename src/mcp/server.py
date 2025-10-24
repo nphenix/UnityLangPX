@@ -272,7 +272,7 @@ class MCPServer:
 ╠══════════════════════════════════════════════════════════════╣
 ║  状态: 运行中                                                   ║
 ║  HTTP服务地址: {server_address:<49} ║
-║  favicon地址: {http_address}/favicon.ico:<39} ║
+║  favicon地址: {http_address/favicon.ico:<39} ║
 ║  主端口: {self.config.server.port:<55} ║
 ║  favicon端口: {self.config.server.http_port if self.config.server.enable_http_server else 'N/A':<51} ║
 ║  主机: {self.config.server.host:<55} ║

@@ -89,9 +89,12 @@ async def run_with_checks(config_file=None, **kwargs):
     
     # 运行服务器
     try:
+        logger.info(f"准备运行服务器，配置文件: {config_file}")
         await run_server(config_file, **kwargs)
     except Exception as e:
         logger.error(f"服务器运行失败: {str(e)}")
+        import traceback
+        logger.error(f"错误详情: {traceback.format_exc()}")
         sys.exit(1)
 
 

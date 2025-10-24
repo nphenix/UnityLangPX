@@ -152,17 +152,41 @@ class MCPConfig(BaseSettings):
         self._apply_kwargs(kwargs)
     
     def _load_toml_config(self, config_file: Path) -> None:
-        """从TOML文件加载配置"""
+        """从配置文件加载配置（支持TOML和JSON格式）"""
+        config_file = Path(config_file)  # 确保是Path对象
         if not config_file.exists():
             return
         
         try:
-            import toml
-            with open(config_file, 'r', encoding='utf-8') as f:
-                toml_config = toml.load(f)
-            
-            # 递归更新配置
-            self._update_nested_config(self, toml_config)
+            # 根据文件扩展名选择解析器
+            if config_file.suffix.lower() == '.json':
+                import json
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    json_config = json.load(f)
+                
+                # 如果是Dify MCP配置格式，需要特殊处理
+                if 'mcpServers' in json_config:
+                    # 从Dify配置中提取环境变量
+                    mcp_server_config = json_config.get('mcpServers', {}).get('unitylangpx', {})
+                    env_vars = mcp_server_config.get('env', {})
+                    
+                    # 应用环境变量
+                    for key, value in env_vars.items():
+                        os.environ[key] = str(value)
+                    
+                    # 不直接更新配置，因为Dify配置格式不同
+                    return
+                
+                # 递归更新配置
+                self._update_nested_config(self, json_config)
+            else:
+                # 默认使用TOML
+                import toml
+                with open(config_file, 'r', encoding='utf-8') as f:
+                    toml_config = toml.load(f)
+                
+                # 递归更新配置
+                self._update_nested_config(self, toml_config)
             
         except Exception as e:
             raise ConfigurationError(f"加载MCP配置文件失败: {str(e)}")
