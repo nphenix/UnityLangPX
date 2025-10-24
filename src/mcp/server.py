@@ -131,6 +131,9 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                 # 返回简单的favicon
                 self.send_response(404)
                 self.end_headers()
+            elif self.path.startswith('/sse') or self.path.startswith('/events'):
+                # SSE (Server-Sent Events) 端点 - Dify 需要这个端点
+                self.handle_sse()
             else:
                 # 其他路径返回404
                 self.send_response(404)
@@ -146,6 +149,111 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.end_headers()
             error_response = {"error": f"Internal Server Error: {str(e)}"}
             self.wfile.write(json.dumps(error_response).encode('utf-8'))
+    
+    def do_OPTIONS(self):
+        """处理OPTIONS请求（CORS预检请求）"""
+        try:
+            logger.info(f"收到OPTIONS请求: {self.path}")
+            
+            # 设置CORS头
+            self.send_response(200)
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Methods', 'GET, POST, OPTIONS')
+            self.send_header('Access-Control-Allow-Headers', 'Content-Type, Cache-Control, Authorization')
+            self.end_headers()
+            
+        except Exception as e:
+            logger.error(f"处理OPTIONS请求失败: {str(e)}")
+            self.send_response(500)
+            self.end_headers()
+    
+    def handle_sse(self):
+        """处理SSE (Server-Sent Events) 请求"""
+        try:
+            logger.info("处理SSE连接请求")
+            
+            # 设置SSE响应头
+            self.send_response(200)
+            self.send_header('Content-Type', 'text/event-stream')
+            self.send_header('Cache-Control', 'no-cache')
+            self.send_header('Connection', 'keep-alive')
+            self.send_header('Access-Control-Allow-Origin', '*')
+            self.send_header('Access-Control-Allow-Headers', 'Cache-Control, Content-Type')
+            self.end_headers()
+            
+            # 获取实际的外部访问地址
+            # 如果是在Docker环境中，需要使用host.docker.internal
+            host = self.server.server_address[0]
+            port = self.server.server_address[1]
+            
+            # 检查是否是Docker环境
+            if host == '0.0.0.0':
+                # 在Docker环境中，外部访问地址应该是host.docker.internal
+                endpoint_url = f"http://host.docker.internal:{port}"
+            else:
+                endpoint_url = f"http://{host}:{port}"
+            
+            logger.info(f"SSE端点URL: {endpoint_url}")
+            
+            # 发送初始连接事件
+            self.wfile.write(b"event: connect\n")
+            self.wfile.write(b"data: {\"type\":\"connected\",\"message\":\"SSE connection established\"}\n\n")
+            self.wfile.flush()
+            
+            # 发送端点URL事件 - 这是Dify需要的
+            self.wfile.write(b"event: endpoint\n")
+            endpoint_data = json.dumps({
+                "type": "endpoint",
+                "url": endpoint_url,
+                "message": "MCP endpoint URL",
+                "port": port,
+                "host": host
+            })
+            self.wfile.write(f"data: {endpoint_data}\n\n".encode('utf-8'))
+            self.wfile.flush()
+            
+            # 发送服务器信息事件
+            self.wfile.write(b"event: server_info\n")
+            server_info = json.dumps({
+                "type": "server_info",
+                "name": "UnityLangPX MCP Server",
+                "version": "1.0.0",
+                "capabilities": ["tools", "translation", "batch_processing"]
+            })
+            self.wfile.write(f"data: {server_info}\n\n".encode('utf-8'))
+            self.wfile.flush()
+            
+            # 发送心跳事件，保持连接
+            import time
+            for i in range(5):  # 发送5次心跳，增加连接时间
+                time.sleep(1)
+                self.wfile.write(b"event: heartbeat\n")
+                heartbeat_data = json.dumps({
+                    "type": "heartbeat",
+                    "timestamp": time.time(),
+                    "message": "keep-alive",
+                    "count": i + 1
+                })
+                self.wfile.write(f"data: {heartbeat_data}\n\n".encode('utf-8'))
+                self.wfile.flush()
+            
+            # 发送关闭事件
+            self.wfile.write(b"event: close\n")
+            self.wfile.write(b"data: {\"type\":\"close\",\"message\":\"SSE connection closing\"}\n\n")
+            self.wfile.flush()
+            
+            logger.info("SSE连接处理完成")
+            
+        except Exception as e:
+            logger.error(f"处理SSE请求失败: {str(e)}")
+            try:
+                self.send_response(500)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                error_response = {"error": f"SSE Error: {str(e)}"}
+                self.wfile.write(json.dumps(error_response).encode('utf-8'))
+            except:
+                pass
     
     def do_POST(self):
         """处理POST请求 - 用于MCP JSON-RPC"""
