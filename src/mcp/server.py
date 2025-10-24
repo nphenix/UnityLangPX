@@ -189,11 +189,9 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             # Dify会连接到 /sse 或 /events 端点
             request_path = self.path
             
-            # 构建完整的端点URL
-            # 获取当前请求的完整URL
-            host = self.headers.get('Host', 'localhost:4012')
-            scheme = 'https' if self.headers.get('X-Forwarded-Proto') == 'https' else 'http'
-            endpoint_url = f"{scheme}://{host}/"
+            # 构建端点URL - Dify期望的是相对路径
+            # 根据MCP协议规范，这里应该返回一个相对路径
+            endpoint_url = "/"
             
             logger.info(f"SSE端点URL: {endpoint_url}")
             
@@ -203,7 +201,7 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
             
             # 发送端点URL事件 - 这是Dify需要的
-            # 根据Dify的MCP客户端实现，这里应该包含完整的URL
+            # 根据Dify的MCP客户端实现，这里应该返回根路径 "/"
             self.wfile.write(b"event: endpoint\n")
             self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
             self.wfile.flush()
