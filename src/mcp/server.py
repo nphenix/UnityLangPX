@@ -114,10 +114,11 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
     def do_GET(self):
         """处理GET请求"""
         try:
-            logger.info(f"收到GET请求: {self.path}")
+            logger.info(f"[MCPHTTPHandler] 收到GET请求: {self.path}")
             
             if self.path == '/' or self.path == '/health':
                 # 健康检查端点
+                logger.info("[MCPHTTPHandler] 处理健康检查请求")
                 self.send_response(200)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
@@ -129,21 +130,24 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                 self.wfile.write(json.dumps(response).encode('utf-8'))
             elif self.path == '/favicon.ico':
                 # 返回简单的favicon
+                logger.info("[MCPHTTPHandler] 处理favicon请求")
                 self.send_response(404)
                 self.end_headers()
             elif self.path.startswith('/sse') or self.path.startswith('/events'):
                 # SSE (Server-Sent Events) 端点 - Dify 需要这个端点
+                logger.info(f"[MCPHTTPHandler] 处理SSE请求: {self.path}")
                 self.handle_sse()
             else:
                 # 其他路径返回404
+                logger.warning(f"[MCPHTTPHandler] 未知路径，返回404: {self.path}")
                 self.send_response(404)
                 self.send_header('Content-Type', 'application/json')
                 self.end_headers()
-                error_response = {"error": "Not Found"}
+                error_response = {"error": "Not Found", "path": self.path}
                 self.wfile.write(json.dumps(error_response).encode('utf-8'))
                 
         except Exception as e:
-            logger.error(f"处理GET请求失败: {str(e)}")
+            logger.error(f"[MCPHTTPHandler] 处理GET请求失败: {str(e)}")
             self.send_response(500)
             self.send_header('Content-Type', 'application/json')
             self.end_headers()
@@ -181,19 +185,16 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Headers', 'Cache-Control, Content-Type')
             self.end_headers()
             
-            # 获取实际的外部访问地址
-            # 如果是在Docker环境中，需要使用host.docker.internal
-            host = self.server.server_address[0]
-            port = self.server.server_address[1]
+            # 获取请求的路径信息
+            # Dify会连接到 /sse 或 /events 端点
+            request_path = self.path
             
-            # 检查是否是Docker环境
-            if host == '0.0.0.0':
-                # 在Docker环境中，外部访问地址应该是host.docker.internal
-                endpoint_url = f"http://host.docker.internal:{port}"
-            else:
-                endpoint_url = f"http://{host}:{port}"
+            # 根据Dify的MCP客户端实现，端点事件应该包含一个相对路径
+            # Dify会使用 urljoin(self.url, sse_data) 来构建完整的端点URL
+            # 所以我们只需要返回一个相对路径，通常是根路径 "/"
+            endpoint_path = "/"
             
-            logger.info(f"SSE端点URL: {endpoint_url}")
+            logger.info(f"SSE端点路径: {endpoint_path}")
             
             # 发送初始连接事件
             self.wfile.write(b"event: connect\n")
@@ -201,15 +202,10 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
             
             # 发送端点URL事件 - 这是Dify需要的
+            # 根据Dify的MCP客户端实现，这里应该只包含相对路径
+            # Dify会使用 urljoin 来构建完整的URL
             self.wfile.write(b"event: endpoint\n")
-            endpoint_data = json.dumps({
-                "type": "endpoint",
-                "url": endpoint_url,
-                "message": "MCP endpoint URL",
-                "port": port,
-                "host": host
-            })
-            self.wfile.write(f"data: {endpoint_data}\n\n".encode('utf-8'))
+            self.wfile.write(f"data: {endpoint_path}\n\n".encode('utf-8'))
             self.wfile.flush()
             
             # 发送服务器信息事件
@@ -276,7 +272,13 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                     # 但由于消息处理器是异步的，我们需要在同步上下文中运行它
                     try:
                         import asyncio
-                        loop = asyncio.get_event_loop()
+                        try:
+                            loop = asyncio.get_event_loop()
+                        except RuntimeError:
+                            # 如果没有事件循环，创建一个新的
+                            loop = asyncio.new_event_loop()
+                            asyncio.set_event_loop(loop)
+                        
                         if loop.is_running():
                             # 如果事件循环正在运行，创建任务
                             response = asyncio.run_coroutine_threadsafe(
@@ -285,7 +287,7 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                             ).result(timeout=10)
                         else:
                             # 如果事件循环未运行，直接运行
-                            response = asyncio.run(
+                            response = loop.run_until_complete(
                                 self.server_instance.message_handler.handle_message(post_data)
                             )
                         
@@ -715,8 +717,13 @@ class MCPServer:
             def handler_factory(*args, **kwargs):
                 return MCPHTTPHandler(*args, server_instance=self, **kwargs)
             
-            # 使用 '0.0.0.0' 监听所有网络接口，这样Docker容器可以访问
-            host = '0.0.0.0'
+            # 使用配置中的主机地址，但如果设置为localhost，则使用0.0.0.0以允许外部访问
+            host = self.config.server.host
+            if host == 'localhost':
+                host = '0.0.0.0'
+            
+            logger.info(f"MCP HTTP服务器尝试绑定到: {host}:{self.config.server.port}")
+            
             self._mcp_http_server = HTTPServer(
                 (host, self.config.server.port),
                 handler_factory
@@ -729,7 +736,7 @@ class MCPServer:
             )
             self._mcp_http_server_thread.start()
             
-            logger.info(f"MCP HTTP服务器已启动，监听所有接口，端口: {self.config.server.port}")
+            logger.info(f"MCP HTTP服务器已启动，监听地址: {host}，端口: {self.config.server.port}")
             logger.info(f"Docker容器可使用 http://host.docker.internal:{self.config.server.port} 访问")
             
         except Exception as e:

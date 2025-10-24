@@ -10,7 +10,7 @@
                 "PYTHONPATH": ".",
                 "UNITYLANGPX_MCP_ENABLED": "true",
                 "UNITYLANGPX_MCP_HOST": "localhost",
-                "UNITYLANGPX_MCP_PORT": "4010",
+                "UNITYLANGPX_MCP_PORT": "4012",
                 "UNITYLANGPX_MCP_LOG_LEVEL": "INFO",
                 "OLLAMA_HOST": "http://localhost:11434",
                 "OLLAMA_MODEL": "SimonPu/Hunyuan-MT-Chimera-7B:Q8"
