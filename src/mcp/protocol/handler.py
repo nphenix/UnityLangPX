@@ -53,6 +53,7 @@ class MessageHandler:
     def _register_default_handlers(self):
         """注册默认处理器"""
         self.register_handler("initialize", self._handle_initialize)
+        self.register_handler("notifications/initialized", self._handle_notifications_initialized)
         self.register_handler("tools/list", self._handle_tools_list)
         self.register_handler("tools/call", self._handle_tools_call)
         self.register_handler("ping", self._handle_ping)
@@ -249,6 +250,17 @@ class MessageHandler:
                 "version": "1.0.0"
             }
         }
+    
+    async def _handle_notifications_initialized(self, params: Dict[str, Any]):
+        """
+        处理初始化完成通知
+        
+        Args:
+            params: 通知参数
+        """
+        logger.info("收到客户端初始化完成通知")
+        # 这是一个通知消息，不需要返回响应
+        return None
     
     async def _handle_tools_list(self, params: Dict[str, Any]) -> Dict[str, Any]:
         """

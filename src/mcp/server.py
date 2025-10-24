@@ -189,12 +189,13 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             # Dify会连接到 /sse 或 /events 端点
             request_path = self.path
             
-            # 根据Dify的MCP客户端实现，端点事件应该包含一个相对路径
-            # Dify会使用 urljoin(self.url, sse_data) 来构建完整的端点URL
-            # 所以我们只需要返回一个相对路径，通常是根路径 "/"
-            endpoint_path = "/"
+            # 构建完整的端点URL
+            # 获取当前请求的完整URL
+            host = self.headers.get('Host', 'localhost:4012')
+            scheme = 'https' if self.headers.get('X-Forwarded-Proto') == 'https' else 'http'
+            endpoint_url = f"{scheme}://{host}/"
             
-            logger.info(f"SSE端点路径: {endpoint_path}")
+            logger.info(f"SSE端点URL: {endpoint_url}")
             
             # 发送初始连接事件
             self.wfile.write(b"event: connect\n")
@@ -202,10 +203,9 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.wfile.flush()
             
             # 发送端点URL事件 - 这是Dify需要的
-            # 根据Dify的MCP客户端实现，这里应该只包含相对路径
-            # Dify会使用 urljoin 来构建完整的URL
+            # 根据Dify的MCP客户端实现，这里应该包含完整的URL
             self.wfile.write(b"event: endpoint\n")
-            self.wfile.write(f"data: {endpoint_path}\n\n".encode('utf-8'))
+            self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
             self.wfile.flush()
             
             # 发送服务器信息事件
@@ -219,24 +219,22 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.wfile.write(f"data: {server_info}\n\n".encode('utf-8'))
             self.wfile.flush()
             
-            # 发送心跳事件，保持连接
+            # 发送心跳事件，保持连接更长时间
             import time
-            for i in range(5):  # 发送5次心跳，增加连接时间
-                time.sleep(1)
-                self.wfile.write(b"event: heartbeat\n")
-                heartbeat_data = json.dumps({
-                    "type": "heartbeat",
-                    "timestamp": time.time(),
-                    "message": "keep-alive",
-                    "count": i + 1
-                })
-                self.wfile.write(f"data: {heartbeat_data}\n\n".encode('utf-8'))
-                self.wfile.flush()
-            
-            # 发送关闭事件
-            self.wfile.write(b"event: close\n")
-            self.wfile.write(b"data: {\"type\":\"close\",\"message\":\"SSE connection closing\"}\n\n")
-            self.wfile.flush()
+            try:
+                for i in range(30):  # 发送30次心跳，保持连接30秒
+                    time.sleep(1)
+                    self.wfile.write(b"event: heartbeat\n")
+                    heartbeat_data = json.dumps({
+                        "type": "heartbeat",
+                        "timestamp": time.time(),
+                        "message": "keep-alive",
+                        "count": i + 1
+                    })
+                    self.wfile.write(f"data: {heartbeat_data}\n\n".encode('utf-8'))
+                    self.wfile.flush()
+            except (ConnectionResetError, BrokenPipeError):
+                logger.info("SSE客户端断开连接")
             
             logger.info("SSE连接处理完成")
             
@@ -268,36 +266,92 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                 
                 # 如果有服务器实例，尝试处理请求
                 if self.server_instance and self.server_instance.message_handler:
-                    # 这里应该调用消息处理器处理请求
-                    # 但由于消息处理器是异步的，我们需要在同步上下文中运行它
+                    # 使用简单的同步处理方式，避免异步问题
                     try:
-                        import asyncio
+                        # 直接处理简单的请求，避免复杂的异步调用
+                        method = request_data.get("method")
+                        request_id = request_data.get("id")
+                        
+                        if method == "ping":
+                            response_data = {
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "result": {"pong": True}
+                            }
+                        elif method == "initialize":
+                            response_data = {
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "result": {
+                                    "protocolVersion": request_data.get("params", {}).get("protocolVersion", "2024-11-05"),
+                                    "capabilities": {
+                                        "tools": {
+                                            "listChanged": True
+                                        },
+                                        "logging": {}
+                                    },
+                                    "serverInfo": {
+                                        "name": "UnityLangPX MCP Server",
+                                        "version": "1.0.0"
+                                    }
+                                }
+                            }
+                        elif method == "tools/list":
+                            response_data = {
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "result": {
+                                    "tools": [
+                                        {
+                                            "name": "translate_text",
+                                            "description": "翻译文本",
+                                            "inputSchema": {
+                                                "type": "object",
+                                                "properties": {
+                                                    "text": {"type": "string"},
+                                                    "source_lang": {"type": "string"},
+                                                    "target_lang": {"type": "string"}
+                                                },
+                                                "required": ["text"]
+                                            }
+                                        }
+                                    ]
+                                }
+                            }
+                        elif method == "notifications/initialized":
+                            # 这是一个通知，不需要响应
+                            response_data = None
+                        else:
+                            response_data = {
+                                "jsonrpc": "2.0",
+                                "id": request_id,
+                                "error": {
+                                    "code": -32601,
+                                    "message": f"Method not found: {method}"
+                                }
+                            }
+                        
                         try:
-                            loop = asyncio.get_event_loop()
-                        except RuntimeError:
-                            # 如果没有事件循环，创建一个新的
-                            loop = asyncio.new_event_loop()
-                            asyncio.set_event_loop(loop)
-                        
-                        if loop.is_running():
-                            # 如果事件循环正在运行，创建任务
-                            response = asyncio.run_coroutine_threadsafe(
-                                self.server_instance.message_handler.handle_message(post_data),
-                                loop
-                            ).result(timeout=10)
-                        else:
-                            # 如果事件循环未运行，直接运行
-                            response = loop.run_until_complete(
-                                self.server_instance.message_handler.handle_message(post_data)
-                            )
-                        
-                        if response:
-                            self.send_response(200)
-                            self.send_header('Content-Type', 'application/json')
-                            self.end_headers()
-                            self.wfile.write(response.encode('utf-8'))
-                        else:
-                            # 没有响应，返回错误
+                            if response_data:
+                                self.send_response(200)
+                                self.send_header('Content-Type', 'application/json')
+                                self.end_headers()
+                                response_json = json.dumps(response_data)
+                                self.wfile.write(response_json.encode('utf-8'))
+                                self.wfile.flush()
+                            else:
+                                # 对于通知消息，返回204 No Content
+                                self.send_response(204)
+                                self.end_headers()
+                                self.wfile.flush()
+                        except ConnectionAbortedError:
+                            logger.debug("客户端已断开连接")
+                        except ConnectionResetError:
+                            logger.debug("连接被重置")
+                            
+                    except Exception as handler_error:
+                        logger.error(f"消息处理器错误: {str(handler_error)}")
+                        try:
                             self.send_response(500)
                             self.send_header('Content-Type', 'application/json')
                             self.end_headers()
@@ -306,24 +360,15 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                                 "id": request_data.get("id"),
                                 "error": {
                                     "code": -32603,
-                                    "message": "Internal error: No response from handler"
+                                    "message": f"Handler error: {str(handler_error)}"
                                 }
                             }
                             self.wfile.write(json.dumps(error_response).encode('utf-8'))
-                    except Exception as handler_error:
-                        logger.error(f"消息处理器错误: {str(handler_error)}")
-                        self.send_response(500)
-                        self.send_header('Content-Type', 'application/json')
-                        self.end_headers()
-                        error_response = {
-                            "jsonrpc": "2.0",
-                            "id": request_data.get("id"),
-                            "error": {
-                                "code": -32603,
-                                "message": f"Handler error: {str(handler_error)}"
-                            }
-                        }
-                        self.wfile.write(json.dumps(error_response).encode('utf-8'))
+                            self.wfile.flush()
+                        except ConnectionAbortedError:
+                            logger.debug("发送错误响应时客户端已断开连接")
+                        except ConnectionResetError:
+                            logger.debug("发送错误响应时连接被重置")
                 else:
                     # 没有消息处理器，返回简单响应
                     self.send_response(200)
