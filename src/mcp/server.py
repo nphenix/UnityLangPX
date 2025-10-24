@@ -205,45 +205,11 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
             self.wfile.flush()
             
-            # 发送连接确认事件
-            self.wfile.write(b"event: connect\n")
-            self.wfile.write(f"data: {{\"type\":\"connected\",\"message\":\"SSE connection established\",\"session_id\":\"{session_id}\"}}\n\n".encode('utf-8'))
-            self.wfile.flush()
+            # 根据MCP SSE协议，Dify只需要收到endpoint事件即可完成连接
+            # 我们不需要发送额外的事件或保持长时间连接
+            # 保持连接打开即可，让客户端可以后续通过/messages端点通信
             
-            # 发送服务器信息事件
-            server_info = {
-                "type": "server_info",
-                "name": "UnityLangPX MCP Server",
-                "version": "1.0.0",
-                "capabilities": ["tools", "translation", "batch_processing"],
-                "session_id": session_id
-            }
-            self.wfile.write(b"event: server_info\n")
-            self.wfile.write(f"data: {json.dumps(server_info)}\n\n".encode('utf-8'))
-            self.wfile.flush()
-            
-            # 发送心跳事件，保持连接活跃
-            import time
-            try:
-                # 持续发送心跳，直到连接断开
-                heartbeat_count = 0
-                while True:
-                    time.sleep(15)  # 每15秒发送一次心跳
-                    heartbeat_count += 1
-                    self.wfile.write(b"event: heartbeat\n")
-                    heartbeat_data = json.dumps({
-                        "type": "heartbeat",
-                        "timestamp": time.time(),
-                        "message": "keep-alive",
-                        "count": heartbeat_count,
-                        "session_id": session_id
-                    })
-                    self.wfile.write(f"data: {heartbeat_data}\n\n".encode('utf-8'))
-                    self.wfile.flush()
-            except (ConnectionResetError, BrokenPipeError):
-                logger.info("SSE客户端断开连接")
-            
-            logger.info("SSE连接处理完成")
+            logger.info("SSE连接建立完成，等待客户端通过/messages端点通信")
             
         except Exception as e:
             logger.error(f"处理SSE请求失败: {str(e)}")
