@@ -137,6 +137,10 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                 # SSE (Server-Sent Events) 端点 - Dify 需要这个端点
                 logger.info(f"[MCPHTTPHandler] 处理SSE请求: {self.path}")
                 self.handle_sse()
+            elif self.path.startswith('/messages'):
+                # Messages端点 - Dify通过这个端点发送MCP消息
+                logger.info(f"[MCPHTTPHandler] 处理Messages请求: {self.path}")
+                self.handle_messages()
             else:
                 # 其他路径返回404
                 logger.warning(f"[MCPHTTPHandler] 未知路径，返回404: {self.path}")
@@ -185,21 +189,25 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Headers', 'Cache-Control, Content-Type')
             self.end_headers()
             
-            # 构建端点URL - Dify期望的是相对路径
-            # 根据MCP协议规范，这里应该返回根路径 "/"
-            endpoint_url = "/"
+            # 生成session ID
+            import uuid
+            session_id = str(uuid.uuid4())
+            
+            # 构建端点URL - Dify期望的是相对路径，包含session_id
+            # 根据MCP协议规范和实际示例，这里应该返回带session_id的相对路径
+            endpoint_url = f"/messages?session_id={session_id}"
             
             logger.info(f"SSE端点URL: {endpoint_url}")
             
             # 立即发送端点URL事件 - 这是Dify需要的关键事件
-            # 根据Dify的MCP客户端实现，这里应该返回根路径 "/"
+            # 根据Dify的MCP客户端实现和示例，这里应该返回带session_id的相对路径
             self.wfile.write(b"event: endpoint\n")
             self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
             self.wfile.flush()
             
             # 发送连接确认事件
             self.wfile.write(b"event: connect\n")
-            self.wfile.write(b"data: {\"type\":\"connected\",\"message\":\"SSE connection established\"}\n\n")
+            self.wfile.write(f"data: {{\"type\":\"connected\",\"message\":\"SSE connection established\",\"session_id\":\"{session_id}\"}}\n\n".encode('utf-8'))
             self.wfile.flush()
             
             # 发送服务器信息事件
@@ -207,7 +215,8 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                 "type": "server_info",
                 "name": "UnityLangPX MCP Server",
                 "version": "1.0.0",
-                "capabilities": ["tools", "translation", "batch_processing"]
+                "capabilities": ["tools", "translation", "batch_processing"],
+                "session_id": session_id
             }
             self.wfile.write(b"event: server_info\n")
             self.wfile.write(f"data: {json.dumps(server_info)}\n\n".encode('utf-8'))
@@ -226,7 +235,8 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
                         "type": "heartbeat",
                         "timestamp": time.time(),
                         "message": "keep-alive",
-                        "count": heartbeat_count
+                        "count": heartbeat_count,
+                        "session_id": session_id
                     })
                     self.wfile.write(f"data: {heartbeat_data}\n\n".encode('utf-8'))
                     self.wfile.flush()
@@ -413,6 +423,148 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
     def log_message(self, format, *args):
         """重写日志方法，避免输出到标准输出"""
         logger.info(f"MCP HTTP服务器: {format % args}")
+    
+    def handle_messages(self):
+        """处理/messages端点的MCP消息请求"""
+        try:
+            logger.info("处理/messages端点请求")
+            
+            # 读取请求体
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            logger.debug(f"Messages数据: {post_data}")
+            
+            # 解析JSON-RPC请求
+            try:
+                request_data = json.loads(post_data)
+                logger.info(f"收到JSON-RPC消息: {request_data}")
+                
+                # 如果有服务器实例，尝试处理请求
+                if self.server_instance and self.server_instance.message_handler:
+                    # 直接处理请求
+                    method = request_data.get("method")
+                    request_id = request_data.get("id")
+                    
+                    if method == "ping":
+                        response_data = {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {"pong": True}
+                        }
+                    elif method == "initialize":
+                        response_data = {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {
+                                "protocolVersion": request_data.get("params", {}).get("protocolVersion", "2024-11-05"),
+                                "capabilities": {
+                                    "tools": {
+                                        "listChanged": True
+                                    },
+                                    "logging": {}
+                                },
+                                "serverInfo": {
+                                    "name": "UnityLangPX MCP Server",
+                                    "version": "1.0.0"
+                                }
+                            }
+                        }
+                    elif method == "tools/list":
+                        response_data = {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "result": {
+                                "tools": [
+                                    {
+                                        "name": "translate_text",
+                                        "description": "翻译文本",
+                                        "inputSchema": {
+                                            "type": "object",
+                                            "properties": {
+                                                "text": {"type": "string"},
+                                                "source_lang": {"type": "string"},
+                                                "target_lang": {"type": "string"}
+                                            },
+                                            "required": ["text"]
+                                        }
+                                    }
+                                ]
+                            }
+                        }
+                    elif method == "notifications/initialized":
+                        # 这是一个通知，不需要响应
+                        response_data = None
+                    else:
+                        response_data = {
+                            "jsonrpc": "2.0",
+                            "id": request_id,
+                            "error": {
+                                "code": -32601,
+                                "message": f"Method not found: {method}"
+                            }
+                        }
+                    
+                    try:
+                        if response_data:
+                            self.send_response(200)
+                            self.send_header('Content-Type', 'application/json')
+                            self.end_headers()
+                            response_json = json.dumps(response_data)
+                            self.wfile.write(response_json.encode('utf-8'))
+                            self.wfile.flush()
+                        else:
+                            # 对于通知消息，返回204 No Content
+                            self.send_response(204)
+                            self.end_headers()
+                            self.wfile.flush()
+                    except ConnectionAbortedError:
+                        logger.debug("客户端已断开连接")
+                    except ConnectionResetError:
+                        logger.debug("连接被重置")
+                        
+                else:
+                    # 没有消息处理器，返回简单响应
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_data.get("id"),
+                        "result": {
+                            "message": "MCP服务器正在运行，但消息处理器未初始化"
+                        }
+                    }
+                    self.wfile.write(json.dumps(response).encode('utf-8'))
+                    
+            except json.JSONDecodeError:
+                logger.error("无效的JSON数据")
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {
+                        "code": -32700,
+                        "message": "Parse error: Invalid JSON"
+                    }
+                }
+                self.wfile.write(json.dumps(error_response).encode('utf-8'))
+                
+        except Exception as e:
+            logger.error(f"处理/messages请求失败: {str(e)}")
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            error_response = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {
+                    "code": -32603,
+                    "message": f"Internal error: {str(e)}"
+                }
+            }
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
 
 
 class MCPServer:
