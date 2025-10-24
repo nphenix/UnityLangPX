@@ -67,7 +67,7 @@ quality_threshold = 0.8     # 质量评估阈值
 [mcp]
 # MCP服务器配置
 enabled = true
-host = "localhost"
+host = "0.0.0.0"  # 修改为0.0.0.0以允许外部访问
 port = 4010
 max_connections = 10
 request_timeout = 120

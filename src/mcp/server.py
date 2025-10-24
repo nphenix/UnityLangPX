@@ -185,42 +185,48 @@ class MCPHTTPHandler(SimpleHTTPRequestHandler):
             self.send_header('Access-Control-Allow-Headers', 'Cache-Control, Content-Type')
             self.end_headers()
             
-            # 获取请求的路径信息
-            # Dify会连接到 /sse 或 /events 端点
-            request_path = self.path
-            
             # 构建端点URL - Dify期望的是相对路径
-            # 根据MCP协议规范，这里应该返回一个相对路径
+            # 根据MCP协议规范，这里应该返回根路径 "/"
             endpoint_url = "/"
             
             logger.info(f"SSE端点URL: {endpoint_url}")
             
-            # 发送端点URL事件 - 这是Dify需要的
+            # 立即发送端点URL事件 - 这是Dify需要的关键事件
             # 根据Dify的MCP客户端实现，这里应该返回根路径 "/"
-            # 注意：只发送端点事件，不发送其他事件，避免干扰Dify客户端
             self.wfile.write(b"event: endpoint\n")
             self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
             self.wfile.flush()
             
-            # 等待一段时间，确保Dify客户端接收到端点事件
+            # 发送连接确认事件
+            self.wfile.write(b"event: connect\n")
+            self.wfile.write(b"data: {\"type\":\"connected\",\"message\":\"SSE connection established\"}\n\n")
+            self.wfile.flush()
+            
+            # 发送服务器信息事件
+            server_info = {
+                "type": "server_info",
+                "name": "UnityLangPX MCP Server",
+                "version": "1.0.0",
+                "capabilities": ["tools", "translation", "batch_processing"]
+            }
+            self.wfile.write(b"event: server_info\n")
+            self.wfile.write(f"data: {json.dumps(server_info)}\n\n".encode('utf-8'))
+            self.wfile.flush()
+            
+            # 发送心跳事件，保持连接活跃
             import time
             try:
-                time.sleep(2)  # 等待2秒，确保客户端处理完端点事件
-                
-                # 然后发送其他事件
-                self.wfile.write(b"event: connect\n")
-                self.wfile.write(b"data: {\"type\":\"connected\",\"message\":\"SSE connection established\"}\n\n")
-                self.wfile.flush()
-                
-                # 发送心跳事件，保持连接更长时间
-                for i in range(30):  # 发送30次心跳，保持连接30秒
-                    time.sleep(1)
+                # 持续发送心跳，直到连接断开
+                heartbeat_count = 0
+                while True:
+                    time.sleep(15)  # 每15秒发送一次心跳
+                    heartbeat_count += 1
                     self.wfile.write(b"event: heartbeat\n")
                     heartbeat_data = json.dumps({
                         "type": "heartbeat",
                         "timestamp": time.time(),
                         "message": "keep-alive",
-                        "count": i + 1
+                        "count": heartbeat_count
                     })
                     self.wfile.write(f"data: {heartbeat_data}\n\n".encode('utf-8'))
                     self.wfile.flush()
