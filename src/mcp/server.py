@@ -406,14 +406,19 @@ class MCPServer:
             # 获取本机IP地址
             import socket
             try:
-                # 获取本机IP地址 - 使用本地连接避免外部网络访问
+                # 获取本机IP地址 - 连接到外部地址获取实际IP
                 s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)
-                # 连接到本地地址而不是外部地址
-                s.connect(("127.0.0.1", 80))
+                # 连接到一个公共DNS服务器地址，这不会实际发送数据
+                s.connect(("8.8.8.8", 80))
                 local_ip = s.getsockname()[0]
                 s.close()
             except Exception:
-                local_ip = "localhost"
+                # 如果失败，尝试获取所有网络接口
+                try:
+                    hostname = socket.gethostname()
+                    local_ip = socket.gethostbyname(hostname)
+                except Exception:
+                    local_ip = "localhost"
             
             # 启动HTTP服务器（如果启用）
             if self.config.server.enable_http_server:
@@ -425,6 +430,7 @@ class MCPServer:
             # 显示服务地址
             server_address = f"http://{local_ip}:{self.config.server.port}"
             http_address = f"http://{local_ip}:{self.config.server.http_port}" if self.config.server.enable_http_server else "未启用"
+            docker_address = f"http://host.docker.internal:{self.config.server.port}"
             console_message = f"""
 ╔══════════════════════════════════════════════════════════════╗
 ║                    UnityLangPX MCP 服务器                        ║
@@ -432,6 +438,7 @@ class MCPServer:
 ║  状态: 运行中                                                   ║
 ║  HTTP服务地址: {server_address:<49} ║
 ║  favicon地址: {http_address+'/favicon.ico':<39} ║
+║  Docker访问地址: {docker_address:<43} ║
 ║  主端口: {self.config.server.port:<55} ║
 ║  favicon端口: {self.config.server.http_port if self.config.server.enable_http_server else 'N/A':<51} ║
 ║  主机: {self.config.server.host:<55} ║
@@ -441,6 +448,7 @@ class MCPServer:
             print(console_message)
             logger.info(f"MCP服务器已启动，支持HTTP和标准输入输出")
             logger.info(f"HTTP服务地址: {server_address}")
+            logger.info(f"Docker容器访问地址: {docker_address}")
             if self.config.server.enable_http_server:
                 logger.info(f"favicon地址: {http_address}/favicon.ico")
             
@@ -599,8 +607,10 @@ class MCPServer:
             def handler_factory(*args, **kwargs):
                 return MCPHTTPHandler(*args, server_instance=self, **kwargs)
             
+            # 使用 '0.0.0.0' 监听所有网络接口，这样Docker容器可以访问
+            host = '0.0.0.0'
             self._mcp_http_server = HTTPServer(
-                (self.config.server.host, self.config.server.port),
+                (host, self.config.server.port),
                 handler_factory
             )
             
@@ -611,7 +621,8 @@ class MCPServer:
             )
             self._mcp_http_server_thread.start()
             
-            logger.info(f"MCP HTTP服务器已启动，地址: http://{self.config.server.host}:{self.config.server.port}")
+            logger.info(f"MCP HTTP服务器已启动，监听所有接口，端口: {self.config.server.port}")
+            logger.info(f"Docker容器可使用 http://host.docker.internal:{self.config.server.port} 访问")
             
         except Exception as e:
             logger.error(f"启动MCP HTTP服务器失败: {str(e)}")

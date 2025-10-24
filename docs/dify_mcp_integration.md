@@ -239,15 +239,20 @@ Model Context Protocol (MCP) 是一种开放协议，允许 AI 模型安全地�
    - **配置方法**：
      - 在 Dify 的「添加 MCP 服务」表单中，图标地址一栏手动填入：`http://<your-mcp-host>:<http-port>/favicon.ico`
      - 例如：`http://localhost:4011/favicon.ico`（默认端口）
-   - **验证方法**：保存并授权后，Dify 前端会直接使用您提供的图标地址，不再尝试访问 Google 服务
-   - **配置示例**：
-     ```json
-     {
-       "name": "UnityLangPX MCP 服务",
-       "url": "http://localhost:4010",
-       "icon": "http://localhost:4011/favicon.ico"
-     }
-     ```
+     - **Docker 环境注意事项**：
+       - 如果 Dify 运行在 Docker 容器中，而 MCP 服务器运行在宿主机上，请使用：
+       - MCP 服务地址：`http://host.docker.internal:4010`
+       - 图标地址：`http://host.docker.internal:4011/favicon.ico`
+       - `host.docker.internal` 是 Docker 提供的特殊 DNS 名称，用于从容器访问宿主机服务
+     - **验证方法**：保存并授权后，Dify 前端会直接使用您提供的图标地址，不再尝试访问 Google 服务
+     - **配置示例**：
+       ```json
+       {
+         "name": "UnityLangPX MCP 服务",
+         "url": "http://host.docker.internal:4010",
+         "icon": "http://host.docker.internal:4011/favicon.ico"
+       }
+       ```
 
 ## 进阶用法
 
