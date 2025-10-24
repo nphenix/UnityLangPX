@@ -104,6 +104,165 @@ class FaviconHandler(SimpleHTTPRequestHandler):
         logger.debug(f"HTTP服务器: {format % args}")
 
 
+class MCPHTTPHandler(SimpleHTTPRequestHandler):
+    """MCP HTTP请求处理器，用于处理Dify的HTTP请求"""
+    
+    def __init__(self, *args, server_instance=None, **kwargs):
+        self.server_instance = server_instance
+        super().__init__(*args, **kwargs)
+    
+    def do_GET(self):
+        """处理GET请求"""
+        try:
+            logger.info(f"收到GET请求: {self.path}")
+            
+            if self.path == '/' or self.path == '/health':
+                # 健康检查端点
+                self.send_response(200)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                response = {
+                    "status": "ok",
+                    "service": "UnityLangPX MCP Server",
+                    "version": "1.0.0"
+                }
+                self.wfile.write(json.dumps(response).encode('utf-8'))
+            elif self.path == '/favicon.ico':
+                # 返回简单的favicon
+                self.send_response(404)
+                self.end_headers()
+            else:
+                # 其他路径返回404
+                self.send_response(404)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                error_response = {"error": "Not Found"}
+                self.wfile.write(json.dumps(error_response).encode('utf-8'))
+                
+        except Exception as e:
+            logger.error(f"处理GET请求失败: {str(e)}")
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            error_response = {"error": f"Internal Server Error: {str(e)}"}
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+    
+    def do_POST(self):
+        """处理POST请求 - 用于MCP JSON-RPC"""
+        try:
+            logger.info(f"收到POST请求: {self.path}")
+            
+            # 读取请求体
+            content_length = int(self.headers.get('Content-Length', 0))
+            post_data = self.rfile.read(content_length).decode('utf-8')
+            logger.debug(f"POST数据: {post_data}")
+            
+            # 尝试解析JSON-RPC请求
+            try:
+                request_data = json.loads(post_data)
+                logger.info(f"收到JSON-RPC请求: {request_data}")
+                
+                # 如果有服务器实例，尝试处理请求
+                if self.server_instance and self.server_instance.message_handler:
+                    # 这里应该调用消息处理器处理请求
+                    # 但由于消息处理器是异步的，我们需要在同步上下文中运行它
+                    try:
+                        import asyncio
+                        loop = asyncio.get_event_loop()
+                        if loop.is_running():
+                            # 如果事件循环正在运行，创建任务
+                            response = asyncio.run_coroutine_threadsafe(
+                                self.server_instance.message_handler.handle_message(post_data),
+                                loop
+                            ).result(timeout=10)
+                        else:
+                            # 如果事件循环未运行，直接运行
+                            response = asyncio.run(
+                                self.server_instance.message_handler.handle_message(post_data)
+                            )
+                        
+                        if response:
+                            self.send_response(200)
+                            self.send_header('Content-Type', 'application/json')
+                            self.end_headers()
+                            self.wfile.write(response.encode('utf-8'))
+                        else:
+                            # 没有响应，返回错误
+                            self.send_response(500)
+                            self.send_header('Content-Type', 'application/json')
+                            self.end_headers()
+                            error_response = {
+                                "jsonrpc": "2.0",
+                                "id": request_data.get("id"),
+                                "error": {
+                                    "code": -32603,
+                                    "message": "Internal error: No response from handler"
+                                }
+                            }
+                            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+                    except Exception as handler_error:
+                        logger.error(f"消息处理器错误: {str(handler_error)}")
+                        self.send_response(500)
+                        self.send_header('Content-Type', 'application/json')
+                        self.end_headers()
+                        error_response = {
+                            "jsonrpc": "2.0",
+                            "id": request_data.get("id"),
+                            "error": {
+                                "code": -32603,
+                                "message": f"Handler error: {str(handler_error)}"
+                            }
+                        }
+                        self.wfile.write(json.dumps(error_response).encode('utf-8'))
+                else:
+                    # 没有消息处理器，返回简单响应
+                    self.send_response(200)
+                    self.send_header('Content-Type', 'application/json')
+                    self.end_headers()
+                    response = {
+                        "jsonrpc": "2.0",
+                        "id": request_data.get("id"),
+                        "result": {
+                            "message": "MCP服务器正在运行，但消息处理器未初始化"
+                        }
+                    }
+                    self.wfile.write(json.dumps(response).encode('utf-8'))
+                    
+            except json.JSONDecodeError:
+                logger.error("无效的JSON数据")
+                self.send_response(400)
+                self.send_header('Content-Type', 'application/json')
+                self.end_headers()
+                error_response = {
+                    "jsonrpc": "2.0",
+                    "id": None,
+                    "error": {
+                        "code": -32700,
+                        "message": "Parse error: Invalid JSON"
+                    }
+                }
+                self.wfile.write(json.dumps(error_response).encode('utf-8'))
+                
+        except Exception as e:
+            logger.error(f"处理POST请求失败: {str(e)}")
+            self.send_response(500)
+            self.send_header('Content-Type', 'application/json')
+            self.end_headers()
+            error_response = {
+                "jsonrpc": "2.0",
+                "id": None,
+                "error": {
+                    "code": -32603,
+                    "message": f"Internal error: {str(e)}"
+                }
+            }
+            self.wfile.write(json.dumps(error_response).encode('utf-8'))
+    
+    def log_message(self, format, *args):
+        """重写日志方法，避免输出到标准输出"""
+        logger.info(f"MCP HTTP服务器: {format % args}")
+
+
 class MCPServer:
     """MCP服务器"""
     
@@ -285,8 +444,12 @@ class MCPServer:
             if self.config.server.enable_http_server:
                 logger.info(f"favicon地址: {http_address}/favicon.ico")
             
-            # 开始处理消息
-            await self._run_message_loop()
+            # 开始处理消息（在后台运行）
+            # 不阻塞主线程，让HTTP服务器能够继续处理请求
+            logger.info("MCP服务器已启动，等待消息...")
+            
+            # 等待关闭信号
+            await self._shutdown_event.wait()
             
         except Exception as e:
             logger.error(f"启动服务器失败: {str(e)}")
@@ -434,7 +597,7 @@ class MCPServer:
         try:
             # 创建HTTP服务器
             def handler_factory(*args, **kwargs):
-                return FaviconHandler(*args, static_dir=self.config.server.static_dir, **kwargs)
+                return MCPHTTPHandler(*args, server_instance=self, **kwargs)
             
             self._mcp_http_server = HTTPServer(
                 (self.config.server.host, self.config.server.port),
