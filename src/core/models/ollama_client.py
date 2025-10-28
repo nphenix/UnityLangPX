@@ -60,15 +60,33 @@ class OriginalOllamaClient:
             raise APIConnectionError(f"获取模型列表失败: {str(e)}")
     
     def translate_text(self, text: str, context: Optional[str] = None,
-                      source_lang: str = "en", target_lang: str = "zh",
-                      temperature: float = 0.1) -> str:
+                       source_lang: str = "en", target_lang: str = "zh",
+                       temperature: float = 0.1) -> str:
         """翻译文本"""
         try:
-            # 构建提示词
+            # 构建更明确的提示词，确保语言转换正确
             if context:
-                prompt = f"Context: {context}\n\nTranslate the following {source_lang} text to {target_lang}:\n\n{text}"
+                prompt = f"""Context: {context}
+
+You are a professional translator. Please translate the following text from {self._get_language_name(source_lang)} to {self._get_language_name(target_lang)}.
+
+Source Language: {self._get_language_name(source_lang)} ({source_lang})
+Target Language: {self._get_language_name(target_lang)} ({target_lang})
+
+Text to translate:
+{text}
+
+Please provide only the translated text without any additional explanation or formatting."""
             else:
-                prompt = f"Translate the following {source_lang} text to {target_lang}:\n\n{text}"
+                prompt = f"""You are a professional translator. Please translate the following text from {self._get_language_name(source_lang)} to {self._get_language_name(target_lang)}.
+
+Source Language: {self._get_language_name(source_lang)} ({source_lang})
+Target Language: {self._get_language_name(target_lang)} ({target_lang})
+
+Text to translate:
+{text}
+
+Please provide only the translated text without any additional explanation or formatting."""
             
             # 发送请求
             response = requests.post(
@@ -86,10 +104,30 @@ class OriginalOllamaClient:
             )
             response.raise_for_status()
             data = response.json()
-            return data.get("response", "").strip()
+            result = data.get("response", "").strip()
+            
+            # 记录翻译详情用于调试
+            logger.debug(f"Ollama翻译完成: {source_lang} -> {target_lang}, 输入长度: {len(text)}, 输出长度: {len(result)}")
+            
+            return result
         except Exception as e:
             logger.error(f"Ollama翻译失败: {str(e)}")
             raise TranslationError(f"翻译失败: {str(e)}")
+    
+    def _get_language_name(self, lang_code: str) -> str:
+        """获取语言的完整名称"""
+        language_names = {
+            "en": "English",
+            "zh": "Chinese",
+            "ja": "Japanese",
+            "ko": "Korean",
+            "fr": "French",
+            "de": "German",
+            "es": "Spanish",
+            "ru": "Russian",
+            "ar": "Arabic"
+        }
+        return language_names.get(lang_code, lang_code)
     
     def close(self):
         """关闭客户端连接"""

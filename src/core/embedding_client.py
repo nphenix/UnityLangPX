@@ -10,6 +10,7 @@ from typing import List, Dict, Any, Optional, Union
 from pathlib import Path
 from abc import ABC, abstractmethod
 from .logger import get_logger
+from ..config.manager import get_config_manager
 
 logger = get_logger(__name__)
 
@@ -426,7 +427,45 @@ class EmbeddingClientFactory:
         Returns:
             可用的嵌入客户端实例
         """
-        # 检测顺序：Ollama -> SentenceTransformer -> OpenAI
+        # 尝试从统一配置系统获取配置
+        try:
+            config_manager = get_config_manager()
+            performance_config = config_manager.get_performance_config()
+            embedding_config = performance_config.embedding
+            
+            # 使用配置中的提供商
+            preferred_provider = embedding_config.provider
+            
+            # 合并配置参数
+            config_kwargs = embedding_config.get_embedding_config()
+            config_kwargs.update(kwargs)
+            
+            # 首先尝试首选提供商
+            try:
+                client = EmbeddingClientFactory.create_client(preferred_provider, **config_kwargs)
+                if client.is_available():
+                    logger.info(f"使用配置的嵌入客户端: {preferred_provider}")
+                    return client
+            except Exception as e:
+                logger.warning(f"无法使用配置的 {preferred_provider} 客户端: {e}")
+            
+            # 如果首选提供商不可用，尝试其他提供商
+            other_providers = ["sentence_transformer", "ollama", "openai"]
+            other_providers.remove(preferred_provider)
+            
+            for provider in other_providers:
+                try:
+                    client = EmbeddingClientFactory.create_client(provider, **config_kwargs)
+                    if client.is_available():
+                        logger.info(f"使用备用嵌入客户端: {provider}")
+                        return client
+                except Exception as e:
+                    logger.warning(f"无法使用 {provider} 客户端: {e}")
+                    
+        except Exception as e:
+            logger.warning(f"无法加载嵌入配置，使用默认检测: {e}")
+        
+        # 如果配置加载失败，使用默认检测顺序
         clients_to_try = [
             ("ollama", kwargs),
             ("sentence_transformer", kwargs),

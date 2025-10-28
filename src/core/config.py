@@ -9,7 +9,7 @@ import os
 from pathlib import Path
 from typing import Optional, Dict, Any
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from .exceptions import ConfigurationError
@@ -19,7 +19,8 @@ class ModelConfig(BaseModel):
     """模型相关配置"""
     provider: str = Field(default="ollama", description="模型提供商")
     
-    @validator('provider')
+    @field_validator('provider')
+    @classmethod
     def validate_provider(cls, v):
         valid_providers = ["ollama", "openai"]
         if v not in valid_providers:
@@ -33,7 +34,8 @@ class OllamaModelConfig(BaseModel):
     model: str = Field(default="SimonPu/Hunyuan-MT-Chimera-7B:Q8", description="翻译模型名称")
     timeout: int = Field(default=60, description="请求超时时间(秒)")
     
-    @validator('host')
+    @field_validator('host')
+    @classmethod
     def validate_host(cls, v):
         if not v.startswith(('http://', 'https://')):
             raise ValueError('Ollama主机地址必须以http://或https://开头')
@@ -48,13 +50,15 @@ class OpenAIModelConfig(BaseModel):
     max_tokens: int = Field(default=4000, description="最大生成令牌数")
     timeout: int = Field(default=60, description="请求超时时间(秒)")
     
-    @validator('base_url')
+    @field_validator('base_url')
+    @classmethod
     def validate_base_url(cls, v):
         if not v.startswith(('http://', 'https://')):
             raise ValueError('API基础URL必须以http://或https://开头')
         return v
     
-    @validator('api_key')
+    @field_validator('api_key')
+    @classmethod
     def validate_api_key(cls, v):
         # 允许空值，但在使用OpenAI提供商时会检查
         return v
@@ -71,10 +75,11 @@ class TranslationConfig(BaseModel):
     source_language: str = Field(default="en", description="源语言")
     target_language: str = Field(default="zh", description="目标语言")
     
-    @validator('overlap')
-    def validate_overlap(cls, v, values):
+    @field_validator('overlap')
+    @classmethod
+    def validate_overlap(cls, v, info):
         # 只有当chunk_size > 0时才验证
-        if 'chunk_size' in values and values['chunk_size'] > 0 and v >= values['chunk_size']:
+        if info.data and 'chunk_size' in info.data and info.data['chunk_size'] > 0 and v >= info.data['chunk_size']:
             raise ValueError('重叠大小不能大于等于分块大小')
         return v
 
@@ -86,7 +91,8 @@ class CLIConfig(BaseModel):
     preserve_structure: bool = Field(default=True, description="保持目录结构")
     parallel_workers: int = Field(default=4, ge=1, le=16, description="并行工作线程数")
     
-    @validator('input_dir', 'output_dir')
+    @field_validator('input_dir', 'output_dir')
+    @classmethod
     def validate_dir(cls, v):
         if not v.strip():
             raise ValueError('目录名不能为空')
@@ -108,7 +114,8 @@ class LoggingConfig(BaseModel):
     max_size_mb: int = Field(default=10, ge=1, description="日志文件最大大小(MB)")
     backup_count: int = Field(default=5, ge=1, description="日志文件备份数量")
     
-    @validator('level')
+    @field_validator('level')
+    @classmethod
     def validate_level(cls, v):
         valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
         if v.upper() not in valid_levels:

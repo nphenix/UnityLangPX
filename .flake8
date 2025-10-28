@@ -1,0 +1,33 @@
+[flake8]
+max-line-length = 127
+max-complexity = 10
+exclude = 
+    .git,
+    __pycache__,
+    .venv,
+    venv,
+    build,
+    dist,
+    *.egg-info,
+    .pytest_cache,
+    .mypy_cache,
+    .tox,
+    workspace,
+    .coverage,
+    htmlcov
+ignore = 
+    # E203: whitespace before ':'
+    E203,
+    # W503: line break before binary operator
+    W503,
+    # E501: line too long (handled by black)
+    E501,
+    # F401: imported but unused (handled by isort)
+    F401
+per-file-ignores = 
+    # Tests can have longer lines and more complex functions
+    tests/*:E501,C901,
+    # __init__.py files can have unused imports
+    __init__.py:F401,
+    # Configuration files can have long lines
+    */config.py:E501

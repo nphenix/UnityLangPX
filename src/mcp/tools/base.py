@@ -5,6 +5,7 @@ UnityLangPX MCP工具基类模块
 """
 
 import asyncio
+import re
 from abc import ABC, abstractmethod
 from typing import Dict, Any, Optional, List
 from dataclasses import dataclass
@@ -222,9 +223,14 @@ class BaseTool(ABC):
         required = []
         
         for param_name, param_def in self._parameters.items():
+            # 确保参数定义不为空
+            if not param_def or param_def.type is None:
+                logger.warning(f"跳过无效参数: {param_name}")
+                continue
+                
             prop_def = {
-                "type": param_def.type,
-                "description": param_def.description
+                "type": param_def.type or "string",
+                "description": param_def.description or ""
             }
             
             # 添加默认值
@@ -232,7 +238,7 @@ class BaseTool(ABC):
                 prop_def["default"] = param_def.default
             
             # 添加枚举值
-            if param_def.enum:
+            if param_def.enum and len(param_def.enum) > 0:
                 prop_def["enum"] = param_def.enum
             
             # 添加字符串约束

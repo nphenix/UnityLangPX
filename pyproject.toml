@@ -7,55 +7,103 @@ name = "unitylangpx"
 version = "1.0.0"
 description = "基于大模型技术的多平台翻译解决方案"
 readme = "README.md"
-requires-python = ">=3.11"
-license = {text = "Apache-2.0"}
+license = {file = "LICENSE"}
 authors = [
-    {name = "UnityLangPX Team"}
+    {name = "UnityLangPX Team", email = "team@unitylangpx.org"}
 ]
-keywords = ["translation", "ai", "ollama", "markdown"]
-dependencies = [
-    "requests>=2.28.0",
-    "markdown>=3.4.0",
-    "aiohttp>=3.8.0",
-    "asyncio-throttle>=1.0.0",
-    "click>=8.0.0",
-    "pydantic>=2.0.0",
-    "pydantic-settings>=2.0.0",
-    "toml>=0.10.0",
-    "numpy>=1.21.0",
-    "pandas>=1.3.0",
-    "psutil>=5.8.0",
-    "pathlib2>=2.3.0",
-    "loguru>=0.7.0",
-    "rich>=13.0.0"
+maintainers = [
+    {name = "UnityLangPX Team", email = "team@unitylangpx.org"}
 ]
+keywords = ["translation", "nlp", "ai", "obsidian", "mcp"]
 classifiers = [
-    "Development Status :: 5 - Production/Stable",
+    "Development Status :: 4 - Beta",
     "Intended Audience :: Developers",
     "License :: OSI Approved :: MIT License",
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.9",
+    "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Topic :: Software Development :: Libraries :: Python Modules",
+    "Topic :: Text Processing :: Linguistic",
+    "Topic :: Scientific/Engineering :: Artificial Intelligence",
+]
+requires-python = ">=3.9"
+dependencies = [
+    "aiofiles>=23.0.0",
+    "aiosqlite>=0.19.0",
+    "asyncio-throttle>=1.0.2",
+    "click>=8.0.0",
+    "fastapi>=0.100.0",
+    "httpx>=0.24.0",
+    "jinja2>=3.1.0",
+    "markdown>=3.4.0",
+    "numpy>=1.24.0",
+    "ollama>=0.1.0",
+    "openai>=1.0.0",
+    "psutil>=5.9.0",
+    "pydantic>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "pytest>=7.0.0",
+    "pytest-asyncio>=0.21.0",
+    "pytest-cov>=4.0.0",
+    "python-multipart>=0.0.6",
+    "pytoml>=0.10.0",
+    "pyyaml>=6.0",
+    "sentence-transformers>=2.2.0",
+    "toml>=0.10.0",
+    "tqdm>=4.64.0",
+    "uvicorn>=0.20.0",
+    "websockets>=11.0.0",
 ]
 
 [project.optional-dependencies]
-cli = ["tqdm>=4.64.0", "colorama>=0.4.4", "watchdog>=2.1.0"]
-dev = ["black>=22.0.0", "isort>=5.10.0", "flake8>=5.0.0", "mypy>=1.0.0"]
-
-[project.scripts]
-unitylangpx = "src.cli.main:cli"
+dev = [
+    "black>=23.0.0",
+    "flake8>=6.0.0",
+    "isort>=5.12.0",
+    "mypy>=1.0.0",
+    "bandit>=1.7.0",
+    "pre-commit>=3.0.0",
+    "pytest-benchmark>=4.0.0",
+    "pytest-mock>=3.10.0",
+    "sphinx>=6.0.0",
+    "sphinx-rtd-theme>=1.2.0",
+    "twine>=4.0.0",
+    "build>=0.10.0",
+]
+mcp = [
+    "mcp>=1.0.0",
+]
+obsidian = [
+    "typescript>=5.0.0",
+    "esbuild>=0.18.0",
+]
 
 [project.urls]
-Homepage = "https://gitee.com/unitylangpx/unitylangpx"
-Repository = "https://gitee.com/unitylangpx/unitylangpx"
-Documentation = "https://unitylangpx.readthedocs.io"
+Homepage = "https://github.com/unitylangpx/unitylangpx"
+Documentation = "https://unitylangpx.readthedocs.io/"
+Repository = "https://github.com/unitylangpx/unitylangpx.git"
+"Bug Tracker" = "https://github.com/unitylangpx/unitylangpx/issues"
+Changelog = "https://github.com/unitylangpx/unitylangpx/blob/main/CHANGELOG.md"
+
+[project.scripts]
+unitylangpx = "src.cli.main:main"
+unitylangpx-server = "src.cli.http_server:main"
 
 [tool.setuptools.packages.find]
-where = ["src"]
+where = ["."]
+include = ["src*"]
+exclude = ["tests*", "workspace*", "docs*"]
 
+[tool.setuptools.package-data]
+"*" = ["*.json", "*.toml", "*.yaml", "*.yml", "*.md", "*.txt"]
+
+# Black配置
 [tool.black]
-line-length = 88
-target-version = ['py311']
+line-length = 127
+target-version = ['py39', 'py310', 'py311', 'py312']
 include = '\.pyi?$'
 extend-exclude = '''
 /(
@@ -68,17 +116,26 @@ extend-exclude = '''
   | \.venv
   | build
   | dist
+  | workspace
+  | docs
 )/
 '''
 
+# isort配置
 [tool.isort]
 profile = "black"
+line_length = 127
 multi_line_output = 3
-line_length = 88
-known_first_party = ["src"]
+include_trailing_comma = true
+force_grid_wrap = 0
+use_parentheses = true
+ensure_newline_before_comments = true
+src_paths = ["src", "tests"]
+skip_glob = ["*/migrations/*", "docs/*", "workspace/*"]
 
+# mypy配置
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.9"
 warn_return_any = true
 warn_unused_configs = true
 disallow_untyped_defs = true
@@ -91,3 +148,82 @@ warn_unused_ignores = true
 warn_no_return = true
 warn_unreachable = true
 strict_equality = true
+
+[[tool.mypy.overrides]]
+module = [
+    "ollama.*",
+    "sentence_transformers.*",
+    "openai.*",
+    "psutil.*",
+]
+ignore_missing_imports = true
+
+# pytest配置
+[tool.pytest.ini_options]
+minversion = "7.0"
+addopts = [
+    "--strict-markers",
+    "--strict-config",
+    "--verbose",
+    "--tb=short",
+    "--cov=src",
+    "--cov-report=term-missing",
+    "--cov-report=html",
+    "--cov-report=xml",
+]
+testpaths = ["tests"]
+python_files = ["test_*.py", "*_test.py"]
+python_classes = ["Test*"]
+python_functions = ["test_*"]
+markers = [
+    "slow: marks tests as slow (deselect with '-m \"not slow\"')",
+    "integration: marks tests as integration tests",
+    "unit: marks tests as unit tests",
+    "benchmark: marks tests as benchmark tests",
+]
+
+# Coverage配置
+[tool.coverage.run]
+source = ["src"]
+omit = [
+    "*/tests/*",
+    "*/test_*",
+    "*/__pycache__/*",
+    "*/venv/*",
+    "*/build/*",
+    "*/dist/*",
+    "workspace/*",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "if self.debug:",
+    "if settings.DEBUG",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if 0:",
+    "if __name__ == .__main__.:",
+    "class .*\\bProtocol\\):",
+    "@(abc\\.)?abstractmethod",
+]
+show_missing = true
+precision = 2
+
+[tool.coverage.html]
+directory = "htmlcov"
+
+# Bandit配置
+[tool.bandit]
+exclude_dirs = ["tests", "workspace", "docs"]
+skips = ["B101", "B601"]
+
+# Benchmark配置
+[tool.benchmark]
+min_rounds = 5
+min_time = 0.005
+sort = "mean"
+histogram = true
+save_data = true
+json_file = "benchmark.json"

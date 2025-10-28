@@ -1,0 +1,67 @@
+{
+  "templates": [
+    {
+      "id": "a2ecd0ea-1d58-4579-98d2-a66d751c183b",
+      "name": "技术文档翻译",
+      "description": "适用于技术文档、API文档和开发指南",
+      "source_lang": "英文",
+      "target_lang": "中文",
+      "pre_prompt": "请将以下英文技术文档翻译为中文，要求：\n1. 保持专业术语一致性\n2. 保留代码块和链接格式\n3. 确保技术概念准确传达\n4. 保持原文档结构和层次\n\n原文档：\n{text}",
+      "post_prompt": "请检查翻译结果中是否包含未翻译的专业术语，并确保技术概念表达准确。",
+      "variables": {
+        "preserve_code_blocks": true,
+        "preserve_links": true,
+        "preserve_images": true,
+        "preserve_formatting": true
+      },
+      "created_at": "2025-10-21T16:53:57.486409",
+      "updated_at": "2025-10-21T16:53:57.486409"
+    },
+    {
+      "id": "f0a6b36a-ad21-4eed-87c2-7e449c9bf619",
+      "name": "学术论文翻译",
+      "description": "适用于学术论文、研究报告和期刊文章",
+      "source_lang": "英文",
+      "target_lang": "中文",
+      "pre_prompt": "请将以下英文学术论文翻译为中文，要求：\n1. 保持学术严谨性和专业性\n2. 专业术语使用标准译法\n3. 保持原文的逻辑结构和论证流程\n4. 确保学术概念准确传达\n\n原文：\n{text}",
+      "post_prompt": "请检查翻译结果中的学术术语是否使用了标准译法，并确保学术表达的严谨性。",
+      "variables": {
+        "preserve_citations": true,
+        "preserve_references": true,
+        "preserve_formatting": true
+      },
+      "created_at": "2025-10-21T16:53:57.486409",
+      "updated_at": "2025-10-21T16:53:57.486409"
+    },
+    {
+      "id": "d811c836-3a2b-4866-b1ce-8e88bbefe529",
+      "name": "小说翻译",
+      "description": "适用于小说、散文和文学作品",
+      "source_lang": "英文",
+      "target_lang": "中文",
+      "pre_prompt": "请将以下英文小说片段翻译为中文，要求：\n1. 保持文学性和语言美感\n2. 保留人物性格和情感表达\n3. 适应中文阅读习惯\n4. 保持故事的连贯性和节奏感\n\n原文：\n{text}",
+      "post_prompt": "请检查翻译结果是否保留了原文的文学色彩和情感表达。",
+      "variables": {
+        "preserve_dialogue_style": true,
+        "preserve_narrative_style": true,
+        "cultural_adaptation": true
+      },
+      "created_at": "2025-10-21T16:53:57.486409",
+      "updated_at": "2025-10-21T16:53:57.486409"
+    },
+    {
+      "id": "5f327ebc-ef8d-4a66-af48-775d5e8caa99",
+      "name": "通用翻译",
+      "description": "适用于一般文档和日常内容",
+      "source_lang": "英文",
+      "target_lang": "中文",
+      "pre_prompt": "请将以下英文内容翻译为中文，要求：\n1. 准确传达原文意思\n2. 保持语言自然流畅\n3. 适应中文表达习惯\n4. 保持专业术语准确性\n\n原文：\n{text}",
+      "post_prompt": "请检查翻译结果是否准确传达了原文意思，语言是否自然流畅。",
+      "variables": {
+        "general_translation": true
+      },
+      "created_at": "2025-10-21T16:53:57.486409",
+      "updated_at": "2025-10-21T16:53:57.486409"
+    }
+  ]
+}

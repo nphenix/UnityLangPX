@@ -1,4 +1,4 @@
-# UnityLangPX 默认配置文件
+# UnityLangPX 默认配置文件 - v1.0.0
 
 [model]
 provider = "ollama"  # 模型提供商: ollama, openai

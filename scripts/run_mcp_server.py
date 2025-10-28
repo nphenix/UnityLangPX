@@ -73,7 +73,7 @@ def create_directories():
         logger.debug(f"创建目录: {dir_path}")
 
 
-async def run_with_checks(config_file=None, **kwargs):
+async def run_with_checks(config_file=None, mode="sse", **kwargs):
     """带检查的运行函数"""
     # 检查依赖
     if not check_dependencies():
@@ -87,9 +87,24 @@ async def run_with_checks(config_file=None, **kwargs):
     if not ollama_available:
         logger.warning("Ollama服务不可用，翻译功能可能无法正常工作")
     
+    # 设置环境变量，确保服务器监听正确接口
+    if mode == "sse":
+        # 对于SSE模式，监听所有接口，允许Docker连接
+        os.environ["UNITYLANGPX_MCP_HOST"] = "0.0.0.0"
+        os.environ["UNITYLANGPX_MCP_PORT"] = "4010"
+        logger.info("SSE模式: 服务器将监听所有接口 (0.0.0.0:4010)")
+        logger.info("Docker容器可使用 http://host.docker.internal:4010 访问")
+    
     # 运行服务器
     try:
         logger.info(f"准备运行服务器，配置文件: {config_file}")
+        
+        # 确保配置文件路径正确
+        if config_file and not Path(config_file).exists():
+            logger.warning(f"配置文件不存在: {config_file}")
+            # 尝试使用默认配置
+            config_file = None
+        
         await run_server(config_file, **kwargs)
     except Exception as e:
         logger.error(f"服务器运行失败: {str(e)}")
@@ -105,7 +120,8 @@ if __name__ == "__main__":
     # 解析命令行参数
     import argparse
     parser = argparse.ArgumentParser(description="UnityLangPX MCP服务器")
-    parser.add_argument("--config", type=str, default="config/dify_mcp_config.json", help="配置文件路径")
+    parser.add_argument("--config", type=str, default="config/dify_mcp_sse_config.json", help="配置文件路径")
+    parser.add_argument("--mode", type=str, default="sse", choices=["sse", "standard"], help="运行模式: sse(HTTP)或standard(标准MCP)")
     parser.add_argument("--log-level", type=str, default="INFO",
                        choices=["DEBUG", "INFO", "WARNING", "ERROR", "CRITICAL"],
                        help="日志级别")
@@ -118,9 +134,20 @@ if __name__ == "__main__":
     
     # 运行服务器
     try:
-        asyncio.run(run_with_checks(args.config))
+        # 设置事件循环策略，确保在Windows上也能正常工作
+        if sys.platform == 'win32':
+            asyncio.set_event_loop_policy(asyncio.WindowsSelectorEventLoopPolicy())
+        
+        # 直接调用main函数，使用简化的信号处理
+        main()
     except KeyboardInterrupt:
-        print("\n服务器已停止")
+        print("\n收到中断信号，正在停止服务器...")
+        # 给服务器一些时间来清理
+        import time
+        time.sleep(1)
+        print("服务器已停止")
     except Exception as e:
         print(f"启动失败: {str(e)}")
+        import traceback
+        print(f"错误详情: {traceback.format_exc()}")
         sys.exit(1)

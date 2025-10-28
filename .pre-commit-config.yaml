@@ -1,35 +1,144 @@
 repos:
-  - repo: https://mirrors.tuna.tsinghua.edu.cn/git/pre-commit/pre-commit-hooks.git
+  # 基础代码检查
+  - repo: https://github.com/pre-commit/pre-commit-hooks
     rev: v4.4.0
     hooks:
       - id: trailing-whitespace
+        description: 删除行尾空白字符
       - id: end-of-file-fixer
+        description: 确保文件以换行符结尾
       - id: check-yaml
-      - id: check-added-large-files
+        description: 检查YAML文件语法
+      - id: check-toml
+        description: 检查TOML文件语法
+      - id: check-json
+        description: 检查JSON文件语法
       - id: check-merge-conflict
+        description: 检查合并冲突标记
+      - id: check-added-large-files
+        description: 检查大文件
+        args: ['--maxkb=1000']
+      - id: check-case-conflict
+        description: 检查文件名大小写冲突
+      - id: check-docstring-first
+        description: 检查文档字符串位置
       - id: debug-statements
+        description: 检查调试语句
 
-  - repo: https://mirrors.tuna.tsinghua.edu.cn/git/psf/black.git
-    rev: 23.3.0
+  # 安全检查
+  - repo: https://github.com/PyCQA/bandit
+    rev: 1.7.5
+    hooks:
+      - id: bandit
+        description: 安全漏洞检查
+        args: ['-c', 'pyproject.toml']
+        additional_dependencies: ['bandit[toml]']
+
+  # 代码格式化
+  - repo: https://github.com/psf/black
+    rev: 23.7.0
     hooks:
       - id: black
-        language_version: python3.11
+        description: 代码格式化
+        language_version: python3
 
-  - repo: https://mirrors.tuna.tsinghua.edu.cn/git/pycqa/isort.git
+  # 导入排序
+  - repo: https://github.com/pycqa/isort
     rev: 5.12.0
     hooks:
       - id: isort
+        description: 导入语句排序
         args: ["--profile", "black"]
 
-  - repo: https://mirrors.tuna.tsinghua.edu.cn/git/pycqa/flake8.git
+  # 代码质量检查
+  - repo: https://github.com/pycqa/flake8
     rev: 6.0.0
     hooks:
       - id: flake8
-        args: [--max-line-length=88, --extend-ignore=E203,W503]
+        description: 代码质量检查
+        additional_dependencies: [flake8-docstrings]
 
-  - repo: https://mirrors.tuna.tsinghua.edu.cn/git/pre-commit/mirrors-mypy.git
-    rev: v1.3.0
+  # 类型检查
+  - repo: https://github.com/pre-commit/mirrors-mypy
+    rev: v1.5.1
     hooks:
       - id: mypy
-        additional_dependencies: [types-requests]
-        args: [--ignore-missing-imports]
+        description: 类型检查
+        additional_dependencies: [types-all]
+
+  # 文档检查
+  - repo: https://github.com/pycqa/pydocstyle
+    rev: 6.3.0
+    hooks:
+      - id: pydocstyle
+        description: 文档字符串检查
+        args: [--convention=google]
+
+  # 复杂度检查
+  - repo: https://github.com/xenon-python/xenon
+    rev: 0.9.0
+    hooks:
+      - id: xenon
+        description: 代码复杂度检查
+        args: [--max-average=A, --max-modules=B, --max-absolute=B]
+
+  # 依赖检查
+  - repo: https://github.com/pyupio/safety
+    rev: 2.3.5
+    hooks:
+      - id: safety
+        description: 依赖安全检查
+
+  # Jupyter Notebook清理
+  - repo: https://github.com/nbQA-dev/nbQA
+    rev: 1.7.0
+    hooks:
+      - id: nbqa-black
+        description: Jupyter Notebook代码格式化
+      - id: nbqa-isort
+        description: Jupyter Notebook导入排序
+      - id: nbqa-flake8
+        description: Jupyter Notebook代码检查
+
+  # 提交信息检查
+  - repo: https://github.com/commitizen-tools/commitizen
+    rev: 3.5.2
+    hooks:
+      - id: commitizen
+        description: 提交信息格式检查
+        stages: [commit-msg]
+
+  # 配置文件检查
+  - repo: local
+    hooks:
+      - id: pytest-check
+        name: pytest-check
+        entry: pytest
+        language: system
+        pass_filenames: false
+        always_run: true
+        description: 运行测试
+
+      - id: requirements-check
+        name: requirements-check
+        entry: pip-compile
+        language: system
+        files: requirements.*\.in$
+        description: 检查依赖文件
+
+# 全局配置
+default_language_version:
+  python: python3.11
+
+# CI配置
+ci:
+  autofix_commit_msg: |
+    [pre-commit.ci] auto fixes from pre-commit.com hooks
+
+    for more information, see https://pre-commit.ci
+  autofix_prs: true
+  autoupdate_branch: ''
+  autoupdate_commit_msg: '[pre-commit.ci] pre-commit autoupdate'
+  autoupdate_schedule: weekly
+  skip: []
+  submodules: false

@@ -303,4 +303,6 @@ def create_tool_registry() -> ToolRegistry:
     Returns:
         工具注册表实例
     """
-    return ToolRegistry()
+    registry = ToolRegistry()
+    logger.info(f"创建工具注册表实例: {registry}")
+    return registry

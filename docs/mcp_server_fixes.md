@@ -1,130 +1,153 @@
-# MCP 服务器修复记录
+# MCP服务器修复记录
 
 ## 问题描述
 
-在 Dify 中成功注册了 MCP，也获得了授权，但是无法获取工具列表。Dify 侧日志反馈：
+Dify与MCP服务器集成时遇到以下问题：
 
-```
-api-1 | 2025-10-24T12:12:23.429739188Z Traceback (most recent call last):
-api-1 | 2025-10-24T12:12:23.429740678Z   File "/app/api/core/mcp/client/sse_client.py", line 209, in _wait_for_endpoint
-api-1 | 2025-10-24T12:12:23.429741962Z     status = status_queue.get(timeout=1)
-api-1 | 2025-10-24T12:12:23.429743030Z              ^^^^^^^^^^^^^^^^^^^^^^^
-api-1 | 2025-10-24T12:12:23.429744182Z   File "/usr/local/lib/python3.12/queue.py", line 179, in get
-api-1 | 2025-10-24T12:12:23.429745301Z     raise Empty
-api-1 | 2025-10-24T12:12:23.429746296Z _queue.Empty
-api-1 | 2025-10-24T12:12:23.429748289Z
-api-1 | 2025-10-24T12:12:23.429749331Z During handling of the above exception, another exception occurred:
-api-1 | 2025-10-24T12:12:23.429750298Z Traceback (most recent call last):
-api-1 | 2025-10-24T12:12:23.429751363Z   File "/app/api/core/mcp/client/sse_client.py", line 287, in sse_client
-api-1 | 2025-10-24T12:12:23.429752500Z     read_queue, write_queue = transport.connect(executor, client, event_source)
-api-1 | 2025-10-24T12:12:23.429753551Z                               ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-api-1 | 2025-10-24T12:12:23.429754670Z   File "/app/api/core/mcp/client/sse_client.py", line 244, in connect
-api-1 | 2025-10-24T12:12:23.429755723Z     endpoint_url = self._wait_for_endpoint(status_queue)
-api-1 | 2025-10-24T12:12:23.429756981Z                    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
-api-1 | 2025-10-24T12:12:23.429759072Z   File "/app/api/core/mcp/client/sse_client.py", line 211, in _wait_for_endpoint
-api-1 | 2025-10-24T12:12:23.429760124Z     raise ValueError("failed to get endpoint URL")
-api-1 | 2025-10-24T12:12:23.429761124Z ValueError: failed to get endpoint URL
-```
+1. **SSE事件问题**：Dify报告"Unknown SSE event: initialized"警告
+2. **URL格式问题**：Dify收到的endpoint URL格式不正确，导致无法正确连接到messages端点
 
 ## 问题分析
 
-错误信息显示 `ValueError: failed to get endpoint URL`，这表明 Dify 无法从 MCP 服务器获取正确的端点 URL。
+### 1. SSE事件问题
 
-经过分析 Dify 的 SSE 客户端代码，发现问题出在 SSE (Server-Sent Events) 端点的实现上。Dify 的 MCP 客户端期望：
+从Dify日志中可以看到：
+```
+2025-10-24T14:26:34.456815987Z 2025-10-24 14:26:34.456 WARNING [ThreadPoolExecutor-87_0] [sse_client.py:127] - Unknown SSE event: initialized
+```
 
-1. SSE 事件类型为 "endpoint"
-2. 事件数据是一个相对路径，如 "/"
-3. 客户端会使用 `urljoin(self.url, sse_data)` 来构建完整的端点 URL
+这表明Dify不认识`initialized`事件。根据MCP协议规范，SSE端点应该只发送`endpoint`事件，而不需要发送`initialized`事件。
 
-我们的原始实现有两个问题：
-1. 端点 URL 格式不正确（使用了完整 URL 而不是相对路径）
-2. 在发送端点事件后立即发送了其他事件，可能干扰了 Dify 客户端的处理
+### 2. URL格式问题
+
+从Dify日志中可以看到：
+```
+Received endpoint URL: http://host.docker.internal:4010/{"url": "http:/host.docker.internal:4010/messages?session_id=90c2db37-9226-4fa3-a28b-0ef4634747a8"}
+```
+
+这表明Dify收到的URL格式不正确。问题在于我们将URL包装在JSON中，而Dify期望直接接收URL字符串。
 
 ## 修复方案
 
-### 1. 修改 SSE 端点实现
+### 1. 修复SSE事件处理
 
-在 `src/mcp/server.py` 文件中的 `handle_sse` 方法中，进行了以下修改：
+在`src/mcp/server.py`的`handle_sse`方法中，移除了不必要的`initialized`事件：
 
-1. 将端点 URL 从完整的 URL 改为相对路径 `/`：
-   ```python
-   # 修改前
-   endpoint_url = f"{scheme}://{host}/"
-   
-   # 修改后
-   endpoint_url = "/"
-   ```
+```python
+# 修复前：
+# 发送初始化完成事件 - 根据MCP协议，这是必需的
+init_data = json.dumps({})
+init_event = f"event: initialized\ndata: {init_data}\n\n"
+self.wfile.write(init_event.encode('utf-8'))
+self.wfile.flush()
 
-2. 调整事件发送顺序，确保端点事件是第一个发送的事件：
-   ```python
-   # 首先发送端点URL事件 - 这是Dify需要的
-   self.wfile.write(b"event: endpoint\n")
-   self.wfile.write(f"data: {endpoint_url}\n\n".encode('utf-8'))
-   self.wfile.flush()
-   
-   # 等待一段时间，确保Dify客户端接收到端点事件
-   time.sleep(2)  # 等待2秒，确保客户端处理完端点事件
-   
-   # 然后发送其他事件
-   ```
-
-### 2. 更新配置文件
-
-在 `config/dify_mcp_config.json` 文件中，将端口从 4012 改为 4010：
-
-```json
-"UNITYLANGPX_MCP_PORT": "4010"
+# 修复后：
+# 移除了initialized事件，只保留endpoint事件
 ```
 
-这是因为 MCP 服务器默认使用端口 4010，而不是 4012。
+### 2. 修复URL格式
+
+在`src/mcp/server.py`的`handle_sse`方法中，修改了SSE响应格式：
+
+```python
+# 修复前：
+endpoint_data = json.dumps({"url": endpoint_url})
+endpoint_event = f"event: endpoint\ndata: {endpoint_data}\n\n"
+
+# 修复后：
+endpoint_event = f"event: endpoint\ndata: {endpoint_url}\n\n"
+```
+
+直接发送URL字符串，而不是包装在JSON中。
 
 ## 测试验证
 
-创建了两个测试脚本验证修复：
+创建了以下测试脚本验证修复效果：
 
-1. `scripts/test_sse_fix.py` - 测试 SSE 端点是否正确发送端点事件
-2. `scripts/test_dify_integration.py` - 测试 Dify 集成是否正常
+1. `scripts/test_sse_fix.py` - 测试SSE端点修复
+2. `scripts/test_dify_integration.py` - 模拟Dify完整集成流程
+3. `scripts/test_sse_response.py` - 验证SSE响应格式
+4. `scripts/start_and_test.py` - 启动服务器并运行集成测试
 
-测试结果：
+## 使用方法
 
-```
-============================================================
-UnityLangPX MCP 服务器 Dify 集成测试
-============================================================
-
-1. 测试健康检查端点...
-[OK] 健康检查通过
-响应数据: {'status': 'ok', 'service': 'UnityLangPX MCP Server', 'version': '1.0.0'}
-
-2. 测试 SSE 端点...
-[OK] SSE 端点连接成功
-收到事件: event: endpoint
-[OK] 收到端点事件
-收到事件: data: /
-[OK] 端点数据正确
-[OK] Dify 集成测试成功
-
-3. 测试工具列表...
-[OK] 获取到 1 个工具:
-  - translate_text: 翻译文本
-
-============================================================
-测试结果汇总:
-Dify连接: [OK] 通过
-工具列表: [OK] 通过
-
-[SUCCESS] Dify 集成测试全部通过！
+1. 启动MCP服务器：
+```bash
+python scripts/run_mcp_server.py
 ```
 
-## 下一步操作
+2. 运行集成测试：
+```bash
+python scripts/test_dify_integration.py
+```
 
-1. 确保 Dify 配置文件中的端口设置为 4010
-2. 重启 Dify 服务
-3. 在 Dify 中重新尝试获取工具列表
+3. 或者使用一键启动和测试：
+```bash
+python scripts/start_and_test.py
+```
+
+## Dify配置
+
+在Dify中添加MCP服务时，使用以下配置：
+
+- **服务地址**: `http://localhost:4010`
+- **图标地址**: `http://localhost:4011/favicon.ico`
+
+如果Dify运行在Docker容器中，而MCP服务器运行在宿主机上，请使用：
+
+- **服务地址**: `http://host.docker.internal:4010`
+- **图标地址**: `http://host.docker.internal:4011/favicon.ico`
+
+## 注意事项
+
+1. 确保MCP服务器已启动并监听在正确的端口
+2. 如果使用Docker，确保网络配置正确
+3. 检查防火墙设置，确保Dify可以访问MCP服务器
+4. 查看MCP服务器日志，确认没有错误信息
+
+## 额外修复：服务器退出问题
+
+### 问题描述
+
+启动MCP服务器后，使用Ctrl+C无法正常退出，只能关闭窗口。
+
+### 问题分析
+
+1. **信号处理不正确**：KeyboardInterrupt信号没有被正确捕获和处理
+2. **线程未正确关闭**：HTTP服务器线程没有在收到信号时正确关闭
+3. **事件循环策略问题**：在Windows上可能需要特殊的事件循环策略
+
+### 修复方案
+
+1. **改进信号处理**：
+   - 在`_setup_signal_handlers`方法中改进信号处理逻辑
+   - 确保在不同情况下都能正确处理关闭信号
+
+2. **修复线程关闭**：
+   - 在`_stop_http_server`和`_stop_mcp_http_server`方法中添加超时检查
+   - 确保线程能够在合理时间内关闭
+
+3. **设置事件循环策略**：
+   - 在Windows上使用`WindowsSelectorEventLoopPolicy`
+   - 确保异步操作能够正常工作
+
+### 修改的文件
+
+1. **src/mcp/server.py**：
+   - 改进`_setup_signal_handlers`方法
+   - 修复`_stop_http_server`和`_stop_mcp_http_server`方法
+   - 在`main`函数中添加事件循环策略设置
+
+2. **scripts/run_mcp_server.py**：
+   - 在主函数中添加事件循环策略设置
+   - 改进KeyboardInterrupt处理
 
 ## 相关文件
 
-- `src/mcp/server.py` - 修复 SSE 端点实现
+- `src/mcp/server.py` - 修复 SSE 端点实现和服务器退出问题
 - `config/dify_mcp_config.json` - 更新端口配置
 - `scripts/test_sse_fix.py` - SSE 端点测试脚本
 - `scripts/test_dify_integration.py` - Dify 集成测试脚本
+- `scripts/test_sse_response.py` - SSE 响应格式验证脚本
+- `scripts/start_and_test.py` - 一键启动和测试脚本
+- `scripts/run_mcp_server.py` - 改进信号处理和事件循环策略

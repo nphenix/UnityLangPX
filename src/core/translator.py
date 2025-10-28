@@ -667,7 +667,7 @@ class Translator:
                 logger.info(f"开始翻译文件: {input_file} -> {output_file}")
                 
                 # 读取文件内容
-                with open(input_file, 'r', encoding='utf-8') as f:
+                with open(input_file, 'r', encoding='utf-8', errors='replace') as f:
                     content = f.read()
                 
                 # 确定文件类型和翻译方法
@@ -748,11 +748,11 @@ class Translator:
                 output_file.parent.mkdir(parents=True, exist_ok=True)
                 
                 # 写入翻译结果
-                with open(output_file, 'w', encoding='utf-8') as f:
+                with open(output_file, 'w', encoding='utf-8', errors='replace') as f:
                     f.write(translation_result.translated_text)
                 
                 # 确保文件已正确写入
-                with open(output_file, 'r', encoding='utf-8') as f:
+                with open(output_file, 'r', encoding='utf-8', errors='replace') as f:
                     content = f.read()
                     # 验证内容是否正确写入
                     if not content:

@@ -182,3 +182,6 @@ output/
 
 # Deprecated directories (development history)
 deprecated/
+
+# Workspace directory (development files)
+workspace/

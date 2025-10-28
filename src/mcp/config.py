@@ -8,7 +8,7 @@ import os
 from typing import Optional, Dict, Any, List
 from pathlib import Path
 
-from pydantic import BaseModel, Field, validator
+from pydantic import BaseModel, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 from ..core.config import Config as CoreConfig
@@ -24,27 +24,71 @@ class MCPServerConfig(BaseModel):
     request_timeout: int = Field(default=120, description="请求超时时间(秒)")
     log_level: str = Field(default="INFO", description="日志级别")
     enable_http_server: bool = Field(default=True, description="是否启用HTTP服务器提供静态文件")
-    http_port: int = Field(default=4011, description="HTTP服务器端口")
+    http_port: int = Field(default=8080, description="HTTP服务器端口")
     static_dir: str = Field(default="static", description="静态文件目录")
+
+
+class MCPSmartRoutingConfig(BaseModel):
+    """智能路由配置"""
+    enable_smart_routing: bool = Field(default=True, description="是否启用智能路由")
+    auto_detect_client: bool = Field(default=True, description="是否自动检测客户端类型")
+    fallback_to_standard: bool = Field(default=True, description="是否回退到标准适配器")
+    log_routing_decisions: bool = Field(default=True, description="是否记录路由决策")
+    cache_client_detection: bool = Field(default=True, description="是否缓存客户端检测结果")
+    cache_ttl_seconds: int = Field(default=300, description="客户端检测缓存TTL(秒)")
     
-    @validator('port')
-    def validate_port(cls, v):
-        if not 1 <= v <= 65535:
-            raise ValueError('端口号必须在1-65535范围内')
+    @field_validator('cache_ttl_seconds')
+    @classmethod
+    def validate_cache_ttl(cls, v):
+        if v <= 0:
+            raise ValueError('客户端检测缓存TTL必须大于0')
+        return v
+
+
+class MCPDifyConfig(BaseModel):
+    """Dify专用配置"""
+    enable_dify_adapter: bool = Field(default=True, description="是否启用Dify适配器")
+    docker_compatible: bool = Field(default=True, description="是否启用Docker兼容性")
+    endpoint_timeout: int = Field(default=30, description="端点超时时间(秒)")
+    sse_read_timeout: int = Field(default=300, description="SSE读取超时时间(秒)")
+    session_timeout: int = Field(default=3600, description="会话超时时间(秒)")
+    max_active_sessions: int = Field(default=100, description="最大活跃会话数")
+    
+    @field_validator('endpoint_timeout')
+    @classmethod
+    def validate_endpoint_timeout(cls, v):
+        if v <= 0:
+            raise ValueError('端点超时时间必须大于0')
         return v
     
-    @validator('http_port')
-    def validate_http_port(cls, v):
-        if not 1 <= v <= 65535:
-            raise ValueError('HTTP服务器端口必须在1-65535范围内')
+    @field_validator('sse_read_timeout')
+    @classmethod
+    def validate_sse_read_timeout(cls, v):
+        if v <= 0:
+            raise ValueError('SSE读取超时时间必须大于0')
         return v
     
-    @validator('log_level')
-    def validate_log_level(cls, v):
-        valid_levels = ['DEBUG', 'INFO', 'WARNING', 'ERROR', 'CRITICAL']
-        if v.upper() not in valid_levels:
-            raise ValueError(f'日志级别必须是以下之一: {", ".join(valid_levels)}')
-        return v.upper()
+    @field_validator('session_timeout')
+    @classmethod
+    def validate_session_timeout(cls, v):
+        if v <= 0:
+            raise ValueError('会话超时时间必须大于0')
+        return v
+    
+    @field_validator('max_active_sessions')
+    @classmethod
+    def validate_max_active_sessions(cls, v):
+        if v <= 0:
+            raise ValueError('最大活跃会话数必须大于0')
+        return v
+
+
+class MCPStandardConfig(BaseModel):
+    """标准MCP配置"""
+    enable_stdio_mode: bool = Field(default=True, description="是否启用标准输入输出模式")
+    enable_http_mode: bool = Field(default=True, description="是否启用HTTP模式")
+    backward_compatible: bool = Field(default=True, description="是否保持向后兼容")
+    strict_protocol_mode: bool = Field(default=False, description="是否启用严格协议模式")
 
 
 class MCPToolsConfig(BaseModel):
@@ -59,13 +103,15 @@ class MCPToolsConfig(BaseModel):
         description="允许的文件扩展名"
     )
     
-    @validator('max_file_size_mb')
+    @field_validator('max_file_size_mb')
+    @classmethod
     def validate_max_file_size(cls, v):
         if v <= 0:
             raise ValueError('最大文件大小必须大于0')
         return v
     
-    @validator('max_batch_size')
+    @field_validator('max_batch_size')
+    @classmethod
     def validate_max_batch_size(cls, v):
         if v <= 0:
             raise ValueError('最大批处理大小必须大于0')
@@ -83,7 +129,8 @@ class MCPSecurityConfig(BaseModel):
     rate_limit: int = Field(default=100, description="每分钟请求数限制")
     enable_cors: bool = Field(default=True, description="是否启用CORS")
     
-    @validator('rate_limit')
+    @field_validator('rate_limit')
+    @classmethod
     def validate_rate_limit(cls, v):
         if v <= 0:
             raise ValueError('请求限制必须大于0')
@@ -97,13 +144,15 @@ class MCPCacheConfig(BaseModel):
     max_cache_size_mb: int = Field(default=100, description="最大缓存大小(MB)")
     ttl_seconds: int = Field(default=3600, description="缓存过期时间(秒)")
     
-    @validator('max_cache_size_mb')
+    @field_validator('max_cache_size_mb')
+    @classmethod
     def validate_max_cache_size(cls, v):
         if v <= 0:
             raise ValueError('最大缓存大小必须大于0')
         return v
     
-    @validator('ttl_seconds')
+    @field_validator('ttl_seconds')
+    @classmethod
     def validate_ttl(cls, v):
         if v <= 0:
             raise ValueError('缓存过期时间必须大于0')
@@ -123,6 +172,9 @@ class MCPConfig(BaseSettings):
     
     # MCP配置节
     server: MCPServerConfig = Field(default_factory=MCPServerConfig)
+    smart_routing: MCPSmartRoutingConfig = Field(default_factory=MCPSmartRoutingConfig)
+    dify: MCPDifyConfig = Field(default_factory=MCPDifyConfig)
+    standard: MCPStandardConfig = Field(default_factory=MCPStandardConfig)
     tools: MCPToolsConfig = Field(default_factory=MCPToolsConfig)
     security: MCPSecurityConfig = Field(default_factory=MCPSecurityConfig)
     cache: MCPCacheConfig = Field(default_factory=MCPCacheConfig)
@@ -141,7 +193,7 @@ class MCPConfig(BaseSettings):
         if config_file is None:
             # 获取项目根目录
             project_root = Path(__file__).parent.parent.parent
-            config_file = project_root / "config" / "default.toml"
+            config_file = project_root / "config" / "unified_config.toml"
         
         self._load_toml_config(config_file)
         
@@ -225,6 +277,30 @@ class MCPConfig(BaseSettings):
         if os.getenv("UNITYLANGPX_MCP_STATIC_DIR"):
             self.server.static_dir = os.getenv("UNITYLANGPX_MCP_STATIC_DIR")
         
+        # 智能路由配置
+        if os.getenv("UNITYLANGPX_MCP_SMART_ROUTING_ENABLED"):
+            self.smart_routing.enable_smart_routing = os.getenv("UNITYLANGPX_MCP_SMART_ROUTING_ENABLED").lower() == "true"
+        
+        if os.getenv("UNITYLANGPX_MCP_AUTO_DETECT_CLIENT"):
+            self.smart_routing.auto_detect_client = os.getenv("UNITYLANGPX_MCP_AUTO_DETECT_CLIENT").lower() == "true"
+        
+        if os.getenv("UNITYLANGPX_MCP_LOG_ROUTING_DECISIONS"):
+            self.smart_routing.log_routing_decisions = os.getenv("UNITYLANGPX_MCP_LOG_ROUTING_DECISIONS").lower() == "true"
+        
+        # Dify配置
+        if os.getenv("UNITYLANGPX_MCP_DIFY_ENABLED"):
+            self.dify.enable_dify_adapter = os.getenv("UNITYLANGPX_MCP_DIFY_ENABLED").lower() == "true"
+        
+        if os.getenv("UNITYLANGPX_MCP_DIFY_DOCKER_COMPATIBLE"):
+            self.dify.docker_compatible = os.getenv("UNITYLANGPX_MCP_DIFY_DOCKER_COMPATIBLE").lower() == "true"
+        
+        # 标准MCP配置
+        if os.getenv("UNITYLANGPX_MCP_STDIO_MODE"):
+            self.standard.enable_stdio_mode = os.getenv("UNITYLANGPX_MCP_STDIO_MODE").lower() == "true"
+        
+        if os.getenv("UNITYLANGPX_MCP_HTTP_MODE"):
+            self.standard.enable_http_mode = os.getenv("UNITYLANGPX_MCP_HTTP_MODE").lower() == "true"
+        
         # 安全配置
         if os.getenv("UNITYLANGPX_MCP_API_KEY"):
             self.security.api_key = os.getenv("UNITYLANGPX_MCP_API_KEY")
@@ -267,6 +343,10 @@ class MCPConfig(BaseSettings):
         
         if os.getenv("OLLAMA_MODEL"):
             core_config.model_ollama.model = os.getenv("OLLAMA_MODEL")
+        
+        # 确保使用正确的模型提供商
+        if os.getenv("OLLAMA_HOST"):
+            core_config.model.provider = "ollama"
         
         return core_config
     
@@ -344,7 +424,7 @@ class MCPConfig(BaseSettings):
             if hasattr(self, section):
                 section_obj = getattr(self, section)
                 if hasattr(section_obj, setting):
-                    setattr(section_obj, setting)
+                    setattr(section_obj, setting, value)
                     return
         
         raise ConfigurationError(f"无效的配置键: {key}")

@@ -1,0 +1,136 @@
+{
+    "mcpServers": {
+        "unitylangpx": {
+            "command": "python",
+            "args": [
+                "-m",
+                "src.mcp.server"
+            ],
+            "env": {
+                "PYTHONPATH": ".",
+                "UNITYLANGPX_MCP_ENABLED": "true",
+                "UNITYLANGPX_MCP_HOST": "0.0.0.0",
+                "UNITYLANGPX_MCP_PORT": "4010",
+                "UNITYLANGPX_MCP_LOG_LEVEL": "DEBUG",
+                "UNITYLANGPX_MCP_ENABLE_HTTP_SERVER": "true",
+                "UNITYLANGPX_MCP_HTTP_PORT": "4011",
+                "OLLAMA_HOST": "http://localhost:11434",
+                "OLLAMA_MODEL": "SimonPu/Hunyuan-MT-Chimera-7B:Q8"
+            }
+        }
+    },
+    "tools": [
+        {
+            "name": "translate_text",
+            "description": "翻译文本内容",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "text": {
+                        "type": "string",
+                        "description": "需要翻译的文本"
+                    },
+                    "source_lang": {
+                        "type": "string",
+                        "description": "源语言代码，默认为 'en'",
+                        "default": "en"
+                    },
+                    "target_lang": {
+                        "type": "string",
+                        "description": "目标语言代码，默认为 'zh'",
+                        "default": "zh"
+                    }
+                },
+                "required": [
+                    "text"
+                ]
+            }
+        },
+        {
+            "name": "translate_file",
+            "description": "翻译文件内容",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "file_path": {
+                        "type": "string",
+                        "description": "文件路径"
+                    },
+                    "source_lang": {
+                        "type": "string",
+                        "description": "源语言代码，默认为 'en'",
+                        "default": "en"
+                    },
+                    "target_lang": {
+                        "type": "string",
+                        "description": "目标语言代码，默认为 'zh'",
+                        "default": "zh"
+                    }
+                },
+                "required": [
+                    "file_path"
+                ]
+            }
+        },
+        {
+            "name": "batch_translate",
+            "description": "批量翻译文件",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "input_dir": {
+                        "type": "string",
+                        "description": "输入目录路径"
+                    },
+                    "output_dir": {
+                        "type": "string",
+                        "description": "输出目录路径"
+                    },
+                    "pattern": {
+                        "type": "string",
+                        "description": "文件匹配模式，默认为 '*.md'",
+                        "default": "*.md"
+                    },
+                    "recursive": {
+                        "type": "boolean",
+                        "description": "是否递归处理子目录",
+                        "default": false
+                    },
+                    "source_lang": {
+                        "type": "string",
+                        "description": "源语言代码，默认为 'en'",
+                        "default": "en"
+                    },
+                    "target_lang": {
+                        "type": "string",
+                        "description": "目标语言代码，默认为 'zh'",
+                        "default": "zh"
+                    }
+                },
+                "required": [
+                    "input_dir",
+                    "output_dir"
+                ]
+            }
+        },
+        {
+            "name": "get_translation_status",
+            "description": "获取翻译状态",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "query_type": {
+                        "type": "string",
+                        "description": "查询类型：'basic', 'full', 'performance'",
+                        "default": "basic"
+                    },
+                    "verbose": {
+                        "type": "boolean",
+                        "description": "是否显示详细信息",
+                        "default": false
+                    }
+                }
+            }
+        }
+    ]
+}

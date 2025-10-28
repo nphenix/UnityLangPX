@@ -1,0 +1,213 @@
+[project]
+name = "UnityLangPX"
+version = "1.0.0"  # 正式发布版本
+description = "基于大模型技术的多平台翻译解决方案"
+
+[model]
+provider = "ollama"
+default_provider = "ollama"
+
+[model_ollama]
+host = "http://localhost:11434"
+model = "SimonPu/Hunyuan-MT-Chimera-7B:Q8"
+timeout = 60
+
+[model_openai]
+base_url = "https://api.openai.com/v1"
+api_key = ""
+model = "gpt-3.5-turbo"
+max_tokens = 4000
+timeout = 60
+
+[translation]
+temperature = 0.1
+max_tokens = 4000
+chunk_size = 1000
+overlap = 50
+source_language = "en"
+target_language = "zh"
+default_model = "SimonPu/Hunyuan-MT-Chimera-7B:Q8"
+overlap_size = 50
+max_retries = 3
+timeout = 30
+
+[cli]
+input_dir = "input"
+output_dir = "output"
+preserve_structure = true
+parallel_workers = 4
+
+[cache]
+enable_cache = true
+cache_dir = ".translation_cache"
+max_cache_size_mb = 500
+cache_ttl_days = 30
+
+[logging]
+level = "INFO"
+file = "translation.log"
+max_size_mb = 10
+backup_count = 5
+
+[performance]
+monitor_performance = true
+memory_limit_mb = 1024
+enable_profiling = false
+
+# 异步缓存配置
+[performance.async_cache]
+# L1缓存（内存）
+l1_max_size = 1000
+l1_ttl = 3600
+
+# L2缓存（SQLite）
+l2_max_size = 10000
+l2_ttl = 86400
+l2_db_path = "data/cache_l2.db"
+
+# L3缓存（文件）
+l3_enabled = true
+l3_dir = "data/cache_l3"
+l3_ttl = 604800
+
+# 批量操作
+batch_size = 100
+batch_timeout = 5.0
+
+# 压缩
+enable_compression = true
+compression_threshold = 1024
+
+# 智能分块器配置
+[performance.smart_chunker]
+max_tokens = 4000
+min_tokens = 200
+overlap_tokens = 200
+respect_code_blocks = true
+respect_obsidian_syntax = true
+preserve_structure = true
+language = "en"
+
+# 性能监控配置
+[performance.performance_monitor]
+enabled = true
+max_history = 1000
+monitor_interval = 5.0
+export_interval = 3600
+export_dir = "data/performance"
+
+# 告警配置
+alert_cpu_threshold = 80.0
+alert_cpu_critical = 95.0
+alert_memory_threshold = 80.0
+alert_memory_critical = 95.0
+alert_disk_threshold = 90.0
+alert_translation_threshold = 30.0
+alert_translation_critical = 60.0
+alert_api_error_rate = 0.1
+alert_cache_hit_rate = 0.5
+
+# 嵌入模型配置
+[performance.embedding]
+enabled = true
+provider = "sentence_transformer"  # sentence_transformer, ollama, openai
+model_name = "bge-m3"
+dimension = 1024
+batch_size = 32
+device = "auto"  # auto, cpu, cuda
+
+# Ollama配置
+ollama_base_url = "http://localhost:11434"
+
+# OpenAI配置
+openai_api_key = ""
+openai_base_url = "https://api.openai.com/v1"
+openai_model = "text-embedding-ada-002"
+
+# 连接池配置
+[performance.connection_pool]
+enabled = true
+max_connections = 100
+max_connections_per_host = 20
+ttl_dns_cache = 300
+use_dns_cache = true
+keepalive_timeout = 60
+enable_cleanup_closed = true
+connect_timeout = 10
+sock_read_timeout = 30
+
+# 错误处理配置
+[performance.error_handling]
+enabled = true
+max_retries = 3
+backoff_factor = 2.0
+retry_delay = 1.0
+enable_fallback = true
+language = "zh"
+enable_error_reporting = true
+error_report_dir = "data/errors"
+
+[mcp]
+enabled = true
+host = "0.0.0.0"
+port = 4010
+max_connections = 10
+request_timeout = 120
+log_level = "INFO"
+enable_http_server = true
+http_port = 8080
+static_dir = "static"
+
+# 智能路由配置
+[mcp.smart_routing]
+enable_smart_routing = true
+auto_detect_client = true
+fallback_to_standard = true
+log_routing_decisions = true
+cache_client_detection = true
+cache_ttl_seconds = 300
+
+# Dify专用配置
+[mcp.dify]
+enable_dify_adapter = true
+docker_compatible = true
+endpoint_timeout = 30
+sse_read_timeout = 300
+session_timeout = 3600
+max_active_sessions = 100
+
+# 标准MCP配置
+[mcp.standard]
+enable_stdio_mode = true
+enable_http_mode = true
+backward_compatible = true
+strict_protocol_mode = false
+
+[mcp_tools]
+translate_text_enabled = true
+translate_file_enabled = true
+batch_translation_enabled = true
+max_file_size_mb = 10
+max_batch_size = 50
+allowed_extensions = [ ".md", ".txt",]
+
+[mcp_security]
+enable_auth = false
+api_key = ""
+allowed_ips = [ "127.0.0.1", "::1",]
+rate_limit = 100
+enable_cors = true
+
+[mcp_cache]
+enabled = true
+cache_dir = "data/mcp_cache"
+max_cache_size_mb = 100
+ttl_seconds = 3600
+
+[terminology]
+enhancement_enabled = true
+enable_hybrid_mode = true
+fallback_to_traditional = true
+max_cache_size = 1000
+cache_dir = "data/terminology_cache"
+quality_threshold = 0.8
